@@ -1,0 +1,57 @@
+<%- include('partials/header', { title: 'สร้าง PPR' }) %>
+<h1>สร้าง PPR จากเลข PR</h1>
+<section class="card">
+  <form method="get" action="/pprs/new" class="row">
+    <label>เลข PR ใน HOSxP <input name="pr_no" value="<%= prNo %>" required autofocus placeholder="เช่น MOCK-PR-<%= info ? info.current_fiscal_year : '' %>-1001"></label>
+    <button type="submit">ดึงข้อมูลและตรวจสอบกับแผน</button>
+  </form>
+  <p class="muted">ระบบดึง PR จาก HOSxP แบบสด (อ่านอย่างเดียว) แล้วตรวจกับแผนที่เปิดใช้งาน ยังไม่บันทึกอะไรจนกว่าจะกด “สร้างฉบับร่าง”</p>
+</section>
+
+<% if (report) { %>
+<section class="card">
+  <% if (!report.found) { %>
+    <h2>ไม่พบ PR <%= report.pr_no %> ใน HOSxP</h2>
+  <% } else { const h = report.header; %>
+    <h2>PR <%= h.pr_no %>
+      <% if (report.eligible) { %><span class="badge ok">ผ่านการตรวจ</span><% } else { %><span class="badge bad">ยังไม่ผ่าน</span><% } %>
+    </h2>
+    <dl class="facts">
+      <dt>วันที่ PR</dt><dd><%= h.pr_date || '-' %></dd>
+      <dt>ปีงบประมาณของ PR</dt><dd><%= h.budget_year || '-' %> <span class="muted">(ปีปัจจุบัน <%= report.current_fiscal_year %>)</span></dd>
+      <dt>หน่วยงาน</dt><dd><%= nameOf(m, 'DEPARTMENT', h.department_id) %></dd>
+      <dt>แหล่งเงิน</dt><dd><%= nameOf(m, 'FUND_SOURCE', h.fund_source_id) %></dd>
+      <dt>หมวดงบ</dt><dd><%= nameOf(m, 'BUDGET_CATEGORY', h.budget_category_id) %></dd>
+      <dt>ผู้ขอใน PR</dt><dd><%= h.requester_name || '-' %></dd>
+      <dt>ยอดรวมหัว PR</dt><dd><%= fmt.money(h.header_total) %> บาท</dd>
+      <dt>ยอดที่ขอใช้แผน</dt><dd><strong><%= fmt.money(report.required_amount) %> บาท</strong> <span class="muted">(ผลรวมรายการ, D-17)</span></dd>
+    </dl>
+    <% if (report.header_violations.length) { %>
+    <div class="problems">
+      <h3>ปัญหาของ PR</h3>
+      <ul><% report.header_violations.forEach(v => { %><li><%= labels.codeText(v.code, v.message) %> <code><%= v.code %></code></li><% }) %></ul>
+    </div>
+    <% } %>
+    <% const choosing = report.lines_checked && report.lines.some(l => l.offered.length); %>
+    <form method="get" action="/pprs/new">
+      <input type="hidden" name="pr_no" value="<%= h.pr_no %>">
+      <%- include('partials/line_choices', { report, chosen: chosen || {}, selectable: choosing }) %>
+      <% if (choosing) { %>
+      <p class="actions"><button type="submit">ตรวจกับรายการแผนที่เลือก</button>
+        <span class="muted">เลือกรายการแผนให้ทุกรายการ PR เอง ระบบไม่จับคู่ให้ และไม่จำไว้ใช้กับ PR อื่น (D-43) · ยังไม่บันทึกอะไร</span></p>
+      <% } %>
+    </form>
+    <% if (report.eligible && can.request) { %>
+    <form method="post" action="/pprs" class="actions">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="pr_no" value="<%= h.pr_no %>">
+      <% report.lines.forEach(l => { %><input type="hidden" name="choice" value="<%= l.pr_item_id %>:<%= l.matched_plan_item_id %>">
+      <% }) %>
+      <button type="submit" class="primary">สร้างฉบับร่าง PPR ด้วยรายการแผนที่ตรวจแล้ว</button>
+      <span class="muted">ฉบับร่างยังไม่มีเลขที่ PPR และยังไม่ตัดแผน จนกว่าจะยืนยัน</span>
+    </form>
+    <% } %>
+  <% } %>
+</section>
+<% } %>
+<%- include('partials/footer') %>

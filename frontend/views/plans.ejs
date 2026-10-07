@@ -1,0 +1,44 @@
+<%- include('partials/header', { title: 'แผนประจำปี' }) %>
+<h1>แผนประจำปี</h1>
+<p class="muted">ขั้นตอน: ร่างแผน → บันทึกว่าได้รับอนุมัติ → เปิดใช้แผน (ระบบตรวจวงเงินและรายการทั้งปีก่อน, D-12) → ปิดปีงบ · หลังเปิดใช้ แก้แผนได้เฉพาะผ่านการปรับแผน (Wave 7)</p>
+<section class="card">
+  <h2>ปีงบประมาณ</h2>
+  <% if (!years.length) { %><p class="empty">ยังไม่มีแผน</p><% } else { %>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>ปีงบ</th><th>สถานะ</th><th>ช่วงเวลา</th><th></th></tr></thead>
+    <tbody><% years.slice().sort((a, b) => b.fiscal_year - a.fiscal_year).forEach(y => { %><tr>
+      <td><a href="/plans/<%= y.fiscal_year %>"><%= y.fiscal_year %></a></td>
+      <td><%= labels.PLAN_YEAR_STATES[y.state] || y.state %></td>
+      <td><%= y.starts_on %> – <%= y.ends_on %></td>
+      <td><a href="/dashboard?fiscal_year=<%= y.fiscal_year %>">แดชบอร์ด</a></td>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+  <% if (can.planManage) { %>
+  <form method="post" action="/plans" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>สร้างแผนปีงบ (พ.ศ.) <input name="fiscal_year" inputmode="numeric" pattern="[0-9]{4}" required value="<%= info ? info.current_fiscal_year : '' %>"></label>
+    <button type="submit" class="primary">สร้าง</button>
+  </form>
+  <% } %>
+</section>
+<% if (runs) { %>
+<section class="card">
+  <h2>ข้อมูลหลักจาก HOSxP</h2>
+  <p class="muted">หน่วยงาน สินค้า แหล่งเงิน และหมวดงบ ต้องซิงค์จาก HOSxP ก่อนบันทึกแผน (อ่านอย่างเดียว)</p>
+  <form method="post" action="/plans/sync-masters" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button type="submit" class="primary">ซิงค์ข้อมูลหลักตอนนี้</button>
+  </form>
+  <% if (runs.length) { %>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>รอบที่</th><th>เริ่ม</th><th>ผล</th><th class="num">ตรวจ</th><th class="num">เพิ่ม</th><th class="num">ปรับ</th></tr></thead>
+    <tbody><% runs.forEach(r => { %><tr class="<%= r.status === 'FAILED' ? 'row-bad' : '' %>">
+      <td><%= r.id %></td><td><%= fmt.date(r.started_at) %></td><td><%= labels.RUN_STATUS[r.status] || r.status %><% if (r.error_details && r.error_details.reason) { %><div class="muted small"><code><%= r.error_details.reason %></code></div><% } %></td>
+      <td class="num"><%= r.records_checked %></td><td class="num"><%= r.records_created %></td><td class="num"><%= r.records_updated %></td>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+</section>
+<% } %>
+<%- include('partials/footer') %>

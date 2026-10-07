@@ -1,0 +1,166 @@
+<%- include('partials/header', { title: 'ปรับแผน ปีงบ ' + year.fiscal_year }) %>
+<% const fy = year.fiscal_year;
+   const act = (kind) => Object.values(m[kind] || {}).filter(r => r.active);
+   const depts = act('DEPARTMENT'); const funds = act('FUND_SOURCE'); const cats = act('BUDGET_CATEGORY');
+   const val = (key, fallback) => (v[key] !== undefined ? (Array.isArray(v[key]) ? v[key][0] : v[key]) : (fallback === null || fallback === undefined ? '' : fallback));
+   const at = (key, i) => { const x = v[key]; if (x === undefined) return ''; return Array.isArray(x) ? (x[i] || '') : (i === 0 ? x : ''); };
+   const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+   const opt = (rows, selected, label) => rows.map(r => `<option value="${esc(r.source_id)}"${r.source_id === selected ? ' selected' : ''}>${esc(label ? label(r) : r.name)}</option>`).join('');
+   // An item's current value is always offered, even if HOSxP has since closed it, so the page never
+   // silently picks another value for a field the user did not touch.
+   const optKeep = (kind, rows, selected, current, label) => ((current && !rows.some(r => r.source_id === current))
+     ? `<option value="${esc(current)}"${current === selected ? ' selected' : ''}>${esc(nameOf(m, kind, current))} (ปิดใช้งานหรือไม่พบในข้อมูลหลัก)</option>` : '') + opt(rows, selected, label); %>
+<h1>ปรับแผน · ปีงบ <%= fy %></h1>
+<p><a href="/plans/<%= fy %>">← กลับไปแผนปีงบ <%= fy %></a> · <a href="/plans/<%= fy %>/amendments">ประวัติการปรับแผน</a></p>
+<% if (year.state !== 'ACTIVE') { %><p class="problems">ปรับแผนได้เฉพาะแผนที่เปิดใช้แล้ว (สถานะปัจจุบัน: <%= labels.PLAN_YEAR_STATES[year.state] || year.state %>)</p><% } %>
+<p class="muted small">กรอกเฉพาะค่าที่ผู้อำนวยการอนุมัติให้ปรับ แล้วกด “ตรวจการปรับแผน” ระบบจะตรวจทั้งชุด (วงเงินแต่ละหมวดต้องเท่ากับผลรวมรายการ, ห้ามต่ำกว่ายอดที่ใช้แล้ว, แหล่งเงินเปลี่ยนไม่ได้) และยังไม่บันทึกจนกว่าจะกด “บันทึกการปรับแผน” (D-37)</p>
+
+<form method="get" action="/plans/<%= fy %>/amendments/new" class="card row">
+  <strong>แสดงรายการแผน:</strong>
+  <label>แหล่งเงิน <select name="f_fund"><option value="">ทั้งหมด</option><%- opt(funds, f.fund) %></select></label>
+  <label>หมวดงบ <select name="f_cat"><option value="">ทั้งหมด</option><%- opt(cats, f.cat) %></select></label>
+  <label>หน่วยงาน <select name="f_dept"><option value="">ทั้งหมด</option><%- opt(depts, f.dept) %></select></label>
+  <label>รายการ <input name="f_find" value="<%= f.find %>"></label>
+  <button type="submit">แสดง</button>
+</form>
+
+<% if (preview) { %>
+<section class="card">
+  <h2>ผลตรวจการปรับแผน <% if (preview.ok) { %><span class="badge ok">บันทึกได้</span><% } else { %><span class="badge bad">ยังบันทึกไม่ได้</span><% } %></h2>
+  <% if (preview.errors.length) { %><h3>ต้องแก้</h3><ul class="plain"><% preview.errors.forEach(i => { %><li><%= labels.codeText(i.code, i.message) %> <code><%= i.code %></code><% if (i.subject) { %> · <%= i.subject %><% } %><br><span class="muted small"><%= i.message %></span></li><% }) %></ul><% } %>
+  <% if (preview.warnings.length) { %><details><summary>ข้อสังเกต (ไม่ห้ามบันทึก) <%= preview.warnings.length %> รายการ</summary><ul class="plain"><% preview.warnings.forEach(i => { %><li><%= labels.codeText(i.code, i.message) %><% if (i.subject) { %> · รายการ #<%= i.subject %><% } %></li><% }) %></ul></details><% } %>
+  <% if (preview.budgets.length) { %>
+  <h3>วงเงินหมวดงบ</h3>
+  <div class="table-wrap"><table class="grid compact">
+    <thead><tr><th>แหล่งเงิน / หมวดงบ</th><th class="num">เดิม</th><th class="num">ใหม่</th></tr></thead>
+    <tbody><% preview.budgets.forEach(b => { %><tr><td><%= nameOf(m, 'FUND_SOURCE', b.fund_source_id) %> / <%= nameOf(m, 'BUDGET_CATEGORY', b.budget_category_id) %><% if (b.before === null) { %> <span class="badge">ใหม่</span><% } %></td><td class="num"><%= fmt.money(b.before) %></td><td class="num"><%= fmt.money(b.after) %></td></tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+  <% if (preview.items.length || preview.new_items.length) { %>
+  <h3>รายการแผน</h3>
+  <div class="table-wrap"><table class="grid compact">
+    <thead><tr><th>รายการ</th><th class="num">ใช้แล้ว</th><th class="num">จำนวน เดิม → ใหม่</th><th class="num">วงเงิน เดิม → ใหม่</th><th>ข้อมูลอื่น</th></tr></thead>
+    <tbody>
+    <% preview.items.forEach(d => { const other = ['item_id', 'item_name', 'unit', 'owner_department_id', 'purchasing_department_id', 'budget_category_id'].filter(k => d.before[k] !== d.after[k]); %><tr>
+      <td>#<%= d.plan_item_id %> <%= d.item_name %></td>
+      <td class="num"><%= fmt.qty(d.used_qty) %> / <%= fmt.money(d.used_amount) %></td>
+      <td class="num"><%= fmt.qty(d.before.planned_qty) %> → <%= fmt.qty(d.after.planned_qty) %></td>
+      <td class="num"><%= fmt.money(d.before.planned_amount) %> → <%= fmt.money(d.after.planned_amount) %></td>
+      <td><%= other.map(k => labels.AMEND_FIELDS[k]).join(', ') %><% if (d.before.estimated_unit_price !== d.after.estimated_unit_price) { %><%= other.length ? ', ' : '' %>ราคาประมาณ<% } %></td>
+    </tr><% }) %>
+    <% preview.new_items.forEach(n => { %><tr>
+      <td><span class="badge">ใหม่</span> <%= n.values.item_id ? nameOf(m, 'ITEM', n.values.item_id) : n.values.item_name + ' (' + n.values.unit + ')' %> · <%= nameOf(m, 'DEPARTMENT', n.values.owner_department_id) %></td>
+      <td class="num">-</td><td class="num">→ <%= fmt.qty(n.values.planned_qty) %></td><td class="num">→ <%= fmt.money(n.values.planned_amount) %></td>
+      <td><%= labels.PLAN_TYPES[n.values.plan_type] %> · <%= nameOf(m, 'BUDGET_CATEGORY', n.values.budget_category_id) %></td>
+    </tr><% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+  <% const demandRows = preview.demands.concat(...preview.new_items.map(n => n.demands.map(d => ({ target: n.ref, department_id: d.department_id, before: null, after: d.demand_qty })))); %>
+  <% if (demandRows.length) { %>
+  <h3>ความต้องการรายหน่วยงาน (แผนซื้อแทน)</h3>
+  <div class="table-wrap"><table class="grid compact">
+    <thead><tr><th>รายการแผน</th><th>หน่วยงาน</th><th class="num">เดิม → ใหม่</th></tr></thead>
+    <tbody><% demandRows.forEach(d => { %><tr>
+      <td><%= /^[0-9]+$/.test(d.target) ? '#' + d.target : 'รายการใหม่ (' + d.target + ')' %></td>
+      <td><%= nameOf(m, 'DEPARTMENT', d.department_id) %></td>
+      <td class="num"><%= d.before === null ? '-' : fmt.qty(d.before) %> → <%= fmt.qty(d.after) %><% if (Number(d.after) === 0) { %> <span class="badge">ยกเลิกความต้องการ</span><% } %></td>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+</section>
+<% } %>
+
+<form method="post" action="/plans/<%= fy %>/amendments/preview" class="card stack">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <input type="hidden" name="base_amendment_no" value="<%= val('base_amendment_no', latest) %>">
+  <input type="hidden" name="f_fund" value="<%= f.fund %>"><input type="hidden" name="f_cat" value="<%= f.cat %>">
+  <input type="hidden" name="f_dept" value="<%= f.dept %>"><input type="hidden" name="f_find" value="<%= f.find %>">
+  <h2>หนังสืออนุมัติ</h2>
+  <div class="row">
+    <label>เลขที่หนังสืออนุมัติ <input name="approval_document_no" required maxlength="100" value="<%= val('approval_document_no') %>"></label>
+    <label>วันที่อนุมัติ <input type="date" name="approval_date" required value="<%= val('approval_date') %>"></label>
+  </div>
+  <label>เหตุผลการปรับแผน <input name="reason" required maxlength="2000" value="<%= val('reason') %>"></label>
+
+  <h2>วงเงินหมวดงบ</h2>
+  <div class="table-wrap"><table class="grid compact">
+    <thead><tr><th>แหล่งเงิน</th><th>หมวดงบ</th><th class="num">วงเงินปัจจุบัน</th><th>วงเงินใหม่ (บาท)</th></tr></thead>
+    <tbody><% budgets.forEach(b => { %><tr>
+      <td><%= nameOf(m, 'FUND_SOURCE', b.fund_source_id) %></td><td><%= nameOf(m, 'BUDGET_CATEGORY', b.budget_category_id) %></td>
+      <td class="num"><%= fmt.money(b.approved_amount) %></td>
+      <td><input name="b_<%= b.id %>" inputmode="decimal" value="<%= val('b_' + b.id, b.approved_amount) %>"><input type="hidden" name="ob_<%= b.id %>" value="<%= val('ob_' + b.id, b.approved_amount) %>"></td>
+    </tr><% }) %></tbody>
+  </table></div>
+  <details <%= at('nb_amount', 0) ? 'open' : '' %>><summary>เพิ่มหมวดงบใหม่</summary>
+    <% for (let i = 0; i < newBudgetRows; i++) { %><div class="row compact-form">
+      <label>แหล่งเงิน <select name="nb_fund"><option value="">-</option><%- opt(funds, at('nb_fund', i)) %></select></label>
+      <label>หมวดงบ <select name="nb_cat"><option value="">-</option><%- opt(cats, at('nb_cat', i), r => `${r.name} (${r.code})`) %></select></label>
+      <label>วงเงิน (บาท) <input name="nb_amount" inputmode="decimal" value="<%= at('nb_amount', i) %>"></label>
+    </div><% } %>
+  </details>
+
+  <h2>รายการแผน (แสดง <%= items.length %> จาก <%= total %>)</h2>
+  <% if (truncated) { %><p class="problems">แสดงเพียง <%= items.length %> รายการแรก ใช้ตัวกรองด้านบนเพื่อหารายการที่จะปรับ (รายการที่ไม่แสดงจะไม่ถูกเปลี่ยน)</p><% } %>
+  <div class="table-wrap"><table class="grid compact">
+    <thead><tr><th>#</th><th>รายการ</th><th>หน่วยงาน / หมวดงบ</th><th class="num">ใช้แล้ว (จำนวน / บาท)</th><th>จำนวน</th><th>ราคาประมาณ</th><th>วงเงิน (บาท)</th><th>ข้อมูลอื่น</th></tr></thead>
+    <tbody><% items.forEach(it => { const u = used[it.id]; const inUse = u && (Number(u.used_qty) > 0 || Number(u.used_amount) > 0); %><tr>
+      <td><%= it.id %></td>
+      <td><%= it.item_code %> <%= it.item_name %><br><span class="muted small"><%= labels.PLAN_TYPES[it.plan_type] %></span></td>
+      <td><%= nameOf(m, 'DEPARTMENT', it.owner_department_id) %><br><span class="muted small"><%= nameOf(m, 'FUND_SOURCE', it.fund_source_id) %> / <%= nameOf(m, 'BUDGET_CATEGORY', it.budget_category_id) %></span></td>
+      <td class="num"><%= u ? fmt.qty(u.used_qty) : '-' %> / <%= u ? fmt.money(u.used_amount) : '-' %></td>
+      <td><input name="q_<%= it.id %>" inputmode="decimal" size="8" value="<%= val('q_' + it.id, it.planned_qty) %>">
+        <% [['oq', it.planned_qty], ['op', it.estimated_unit_price], ['oa', it.planned_amount], ['oi', it.item_id], ['oo', it.owner_department_id], ['ou', it.purchasing_department_id], ['oc', it.budget_category_id]].forEach(([k, x]) => { %><input type="hidden" name="<%= k %>_<%= it.id %>" value="<%= val(k + '_' + it.id, x) %>"><% }) %></td>
+      <td><input name="p_<%= it.id %>" inputmode="decimal" size="8" value="<%= val('p_' + it.id, it.estimated_unit_price) %>"></td>
+      <td><input name="a_<%= it.id %>" inputmode="decimal" size="10" value="<%= val('a_' + it.id, it.planned_amount) %>"></td>
+      <td><% if (inUse) { %><span class="muted small">ใช้แล้ว: แก้ได้เฉพาะตัวเลข</span><% } else { %><details><summary>แก้</summary>
+        <% if (it.item_id) { %><label>รหัสสินค้า HOSxP <input name="i_<%= it.id %>" value="<%= val('i_' + it.id, it.item_id) %>"></label>
+        <% } else { %><label>ชื่อรายการ <input name="nm_<%= it.id %>" maxlength="500" value="<%= val('nm_' + it.id, it.item_name) %>"></label>
+        <label>หน่วยนับ <input name="un_<%= it.id %>" maxlength="100" value="<%= val('un_' + it.id, it.unit) %>"></label>
+        <input type="hidden" name="onm_<%= it.id %>" value="<%= val('onm_' + it.id, it.item_name) %>"><input type="hidden" name="oun_<%= it.id %>" value="<%= val('oun_' + it.id, it.unit) %>"><% } %>
+        <label>หน่วยงานเจ้าของแผน <select name="o_<%= it.id %>"><%- optKeep('DEPARTMENT', depts, val('o_' + it.id, it.owner_department_id), it.owner_department_id) %></select></label>
+        <label>หน่วยงานผู้ซื้อ <select name="u_<%= it.id %>"><option value="">-</option><%- optKeep('DEPARTMENT', depts, val('u_' + it.id, it.purchasing_department_id), it.purchasing_department_id) %></select></label>
+        <label>หมวดงบ (แหล่งเงินเดิม) <select name="c_<%= it.id %>"><%- optKeep('BUDGET_CATEGORY', cats, val('c_' + it.id, it.budget_category_id), it.budget_category_id, r => `${r.name} (${r.code})`) %></select></label>
+      </details><% } %></td>
+    </tr>
+    <% if (it.plan_type === 'ASSIGNED') { const rows = (it.demands || []).concat([{ department_id: '', demand_qty: '' }]); %><tr class="sub">
+      <td></td><td colspan="7"><strong>ความต้องการรายหน่วยงาน</strong> <span class="muted small">(ลดต่ำกว่ายอดที่ PPR ที่ยังมีผลครอบคลุมไว้ไม่ได้ · 0 = ยกเลิกความต้องการ)</span>
+        <div class="row compact-form"><% rows.forEach((d, i) => { %>
+          <label><% if (d.department_id) { %><%= nameOf(m, 'DEPARTMENT', d.department_id) %> <span class="muted small">(<%= labels.DEMAND_STATES[d.state] || d.state %> · PPR ครอบคลุมแล้ว <%= fmt.qty(d.covered || 0) %>)</span><input type="hidden" name="dd_<%= it.id %>" value="<%= d.department_id %>"><% } else { %>เพิ่มหน่วยงาน <select name="dd_<%= it.id %>"><option value="">-</option><%- opt(depts, at('dd_' + it.id, i)) %></select><% } %>
+            <input name="dq_<%= it.id %>" inputmode="decimal" size="6" value="<%= v['dq_' + it.id] === undefined ? d.demand_qty : at('dq_' + it.id, i) %>">
+            <input type="hidden" name="odq_<%= it.id %>" value="<%= v['odq_' + it.id] === undefined ? d.demand_qty : at('odq_' + it.id, i) %>"></label>
+        <% }) %></div></td>
+    </tr><% } %>
+    <% }) %></tbody>
+  </table></div>
+
+  <details <%= at('n_item', 0) || at('n_name', 0) ? 'open' : '' %>><summary>เพิ่มรายการแผนใหม่</summary>
+    <p class="muted small">แผนซื้อแทน (ASSIGNED) รายการใหม่ต้องระบุความต้องการรายหน่วยงาน (D-38)</p>
+    <% for (let i = 0; i < newItemRows; i++) { %><fieldset><legend>รายการใหม่ <%= i + 1 %></legend><div class="row compact-form">
+      <label>ประเภทแผน <select name="n_type"><% amendTypes.forEach(t => { %><option value="<%= t %>" <%= at('n_type', i) === t ? 'selected' : '' %>><%= labels.PLAN_TYPES[t] %></option><% }) %></select></label>
+      <label>รหัสสินค้า HOSxP (ไม่บังคับ) <input name="n_item" value="<%= at('n_item', i) %>"></label>
+      <label>ชื่อรายการ (เมื่อไม่ใส่รหัส) <input name="n_name" maxlength="500" value="<%= at('n_name', i) %>"></label>
+      <label>หน่วยนับ (เมื่อไม่ใส่รหัส) <input name="n_unit" maxlength="100" value="<%= at('n_unit', i) %>"></label>
+      <label>หน่วยงานเจ้าของแผน <select name="n_owner"><option value="">-</option><%- opt(depts, at('n_owner', i)) %></select></label>
+      <label>หน่วยงานผู้ซื้อ <select name="n_buyer"><option value="">-</option><%- opt(depts, at('n_buyer', i)) %></select></label>
+      <label>แหล่งเงิน <select name="n_fund"><option value="">-</option><%- opt(funds, at('n_fund', i)) %></select></label>
+      <label>หมวดงบ <select name="n_cat"><option value="">-</option><%- opt(cats, at('n_cat', i), r => `${r.name} (${r.code})`) %></select></label>
+      <label>จำนวน <input name="n_qty" inputmode="decimal" size="8" value="<%= at('n_qty', i) %>"></label>
+      <label>ราคาประมาณ <input name="n_price" inputmode="decimal" size="8" value="<%= at('n_price', i) %>"></label>
+      <label>วงเงิน (บาท) <input name="n_amount" inputmode="decimal" size="10" value="<%= at('n_amount', i) %>"></label>
+      <label>หมายเหตุ <input name="n_note" value="<%= at('n_note', i) %>"></label>
+    </div>
+    <div class="row compact-form"><span class="muted small">ความต้องการรายหน่วยงาน (เฉพาะแผนซื้อแทน):</span>
+      <% for (let k = 0; k < newDemandRows; k++) { %><label><select name="n_dd_<%= i %>"><option value="">-</option><%- opt(depts, at('n_dd_' + i, k)) %></select>
+        <input name="n_dq_<%= i %>" inputmode="decimal" size="6" value="<%= at('n_dq_' + i, k) %>"></label><% } %>
+    </div></fieldset><% } %>
+    <p class="muted small">ไม่ใส่รหัสสินค้า HOSxP ได้ (D-43): ต้องกรอกชื่อรายการและหน่วยนับ ผู้ขอเลือกรายการนี้เองตอนทำ PPR · แผนซื้อแทนต้องมีรหัส · ค้นหารหัสสินค้าได้ที่หน้า <a href="/plans/<%= fy %>/items/new">เพิ่มรายการแผน</a> (รหัสต้องมีในข้อมูลหลักที่ซิงค์จาก HOSxP และยังใช้งาน)</p>
+  </details>
+
+  <div class="row">
+    <button type="submit" class="primary">ตรวจการปรับแผน</button>
+    <% if (preview && preview.ok) { %><button type="submit" class="danger" formaction="/plans/<%= fy %>/amendments">บันทึกการปรับแผน (ย้อนกลับไม่ได้)</button><% } %>
+  </div>
+  <% if (preview && preview.ok) { %><p class="muted small">ถ้าแก้ค่าในแบบฟอร์มหลังตรวจแล้ว ระบบจะตรวจทั้งชุดอีกครั้งตอนบันทึก</p><% } %>
+</form>
+<%- include('partials/footer') %>

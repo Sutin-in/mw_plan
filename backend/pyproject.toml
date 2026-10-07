@@ -1,0 +1,157 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ppr-control"
+version = "0.1.0"
+description = "Hospital Plan & PPR Control System - Phase 1 (see docs/PHASE1_TECHNICAL_SPEC.md)"
+requires-python = ">=3.12"
+# Runtime dependencies (ADR-001). Persistence/API deps were added in Wave 1B.
+dependencies = [
+    "pydantic>=2.7,<3",
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
+    "fastapi>=0.115",
+    # HOSxP read-only adapter: MySQL/MariaDB driver (PostgreSQL uses psycopg above).
+    "pymysql>=1.1",
+    # API server process (Wave 5A, `python -m ppr.cli serve`).
+    "uvicorn>=0.30",
+    # Excel export of reports (Wave 8B, D-35).
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "import-linter>=2.0",
+    "httpx>=0.27",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../tools/validators", "tests"]
+addopts = "-ra --strict-markers"
+filterwarnings = [
+    # Third-party notice from FastAPI's TestClient (test-only); not our code.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+markers = [
+    "spec(*ids): traceability to docs/PHASE1_TECHNICAL_SPEC.md (AT-40.x.y acceptance IDs, D-0x decisions, S-<section>)",
+    "db: needs the PostgreSQL test database (PPR_TEST_DATABASE_URL); mandatory in check",
+]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "../tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "DTZ", "T20"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802"]
+"migrations/versions/**" = ["E501"]  # generated DDL strings
+"src/ppr/cli.py" = ["T201"]  # command-line output
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["ppr"]
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["ppr.domain.*", "ppr.integration.*"]
+strict = true
+
+# openpyxl ships without type information (Excel export, Wave 8B).
+[[tool.mypy.overrides]]
+module = ["openpyxl", "openpyxl.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- import-linter
+# Layering rules from docs/PHASE1_ASSESSMENT.md §D.2. Guard self-tests in
+# tests/guards/test_layering_guard.py prove these contracts catch violations.
+[tool.importlinter]
+root_package = "ppr"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure: no framework, persistence, integration, application or API imports"
+type = "forbidden"
+source_modules = ["ppr.domain"]
+forbidden_modules = [
+    "ppr.application",
+    "ppr.api",
+    "ppr.infrastructure",
+    "ppr.integration",
+    "pydantic",
+    "fastapi",
+    "sqlalchemy",
+    "alembic",
+]
+
+[[tool.importlinter.contracts]]
+name = "Core never depends on a concrete HOSxP implementation (mock or real)"
+type = "forbidden"
+source_modules = [
+    "ppr.domain",
+    "ppr.application",
+    "ppr.ports",
+    "ppr.infrastructure",
+    "ppr.integration.hosxp.contracts",
+    "ppr.integration.hosxp.gateway",
+    "ppr.integration.hosxp.auth",
+    "ppr.integration.hosxp.status",
+]
+forbidden_modules = [
+    "ppr.integration.hosxp.mock",
+    "ppr.integration.hosxp.real",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application and ports never touch persistence, HTTP or frameworks"
+type = "forbidden"
+source_modules = ["ppr.application", "ppr.ports"]
+forbidden_modules = [
+    "ppr.infrastructure",
+    "ppr.api",
+    "sqlalchemy",
+    "alembic",
+    "fastapi",
+]
+
+[[tool.importlinter.contracts]]
+name = "Stock movements are read for reports only: no path to the Plan Ledger or storage (D-39)"
+type = "forbidden"
+source_modules = ["ppr.application.stock_services"]
+forbidden_modules = [
+    "ppr.domain.ledger",
+    "ppr.ports",
+    "ppr.infrastructure",
+    "ppr.application.plan_services",
+    "ppr.application.ppr_services",
+    "ppr.application.sync_services",
+]
+
+[[tool.importlinter.contracts]]
+name = "Mock and real HOSxP adapters are independent"
+type = "independence"
+modules = [
+    "ppr.integration.hosxp.mock",
+    "ppr.integration.hosxp.real",
+]

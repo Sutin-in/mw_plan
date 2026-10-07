@@ -1,0 +1,3 @@
+<%# remaining / planned as a native meter (no script, no inline style): low when <= low % %>
+<% const planned = Number(planned_); const remaining = Number(remaining_); %>
+<% if (planned > 0) { %><meter class="bar" min="0" max="<%= planned %>" value="<%= Math.max(0, remaining) %>" <% if (low_) { %>low="<%= planned * low_ / 100 %>"<% } %> optimum="<%= planned %>" title="คงเหลือ <%= Math.round(remaining * 100 / planned) %>%"></meter><% } %>

@@ -1,0 +1,4 @@
+# Acceptance criteria (spec §40) that cannot be tested yet, with the reason.
+# Read by tools/validators/traceability.py and acceptance_report.py: listed IDs are reported
+# as DEFERRED instead of failing the 100 % acceptance gate. Every line needs a reason; remove
+# the line as soon as a test covers the criterion. Format:  AT-<id> | reason

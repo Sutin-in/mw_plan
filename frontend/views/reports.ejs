@@ -1,0 +1,14 @@
+<%- include('partials/header', { title: 'รายงาน' }) %>
+<h1>รายงาน</h1>
+<p class="muted">ดูบนหน้าจอหรือดาวน์โหลดเป็น Excel (ข้อมูลชุดเดียวกัน) · เห็นเฉพาะข้อมูลตามสิทธิ์ของคุณ · การดาวน์โหลดทุกครั้งบันทึกในประวัติการตรวจสอบ (D-35)</p>
+<% const groups = [['plan', 'แผน'], ['ppr', 'PPR'], ['audit', 'ประวัติการตรวจสอบ']]; %>
+<% groups.forEach(([kind, name]) => { const rows = reports.filter(r => r.kind === kind && r.available); if (!rows.length) return; %>
+<section class="card">
+  <h2><%= name %></h2>
+  <ul class="plain">
+    <% rows.forEach(r => { %><li><a href="/reports/<%= r.code %>"><%= r.title %></a></li><% }) %>
+  </ul>
+</section>
+<% }) %>
+<p class="muted small">รายงานการปรับแผนและการใช้แผนกลางจะเพิ่มพร้อมฟีเจอร์ใน Wave 7</p>
+<%- include('partials/footer') %>

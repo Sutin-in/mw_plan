@@ -1,0 +1,17 @@
+<%- include('partials/header', { title: 'ประวัติการปรับแผน ปีงบ ' + fy }) %>
+<div class="page-head">
+  <h1>ประวัติการปรับแผน · ปีงบ <%= fy %></h1>
+  <% if (can.planAmend && year && year.state === 'ACTIVE') { %><a class="button primary" href="/plans/<%= fy %>/amendments/new">+ ปรับแผน</a><% } %>
+</div>
+<p><a href="/plans/<%= fy %>">← กลับไปแผนปีงบ <%= fy %></a> · <a href="/reports/PLAN_AMENDMENT?fiscal_year=<%= fy %>&go=1">รายงานการปรับแผน (Excel)</a></p>
+<% if (!amendments.length) { %><p class="empty">ยังไม่มีการปรับแผน</p><% } else { %>
+<div class="table-wrap"><table class="grid">
+  <thead><tr><th class="num">ครั้งที่</th><th>เลขที่หนังสืออนุมัติ</th><th>วันที่อนุมัติ</th><th>บันทึกเมื่อ</th><th>เหตุผล</th><th class="num">การเปลี่ยนแปลง</th><th></th></tr></thead>
+  <tbody><% amendments.forEach(a => { %><tr>
+    <td class="num"><%= a.amendment_no %></td><td><%= a.approval_document_no %></td><td><%= a.approval_date %></td>
+    <td><%= fmt.date(a.created_at) %></td><td><%= a.reason %></td><td class="num"><%= a.changes.length %></td>
+    <td><a href="/plan-amendments/<%= a.id %>">ดู</a></td>
+  </tr><% }) %></tbody>
+</table></div>
+<% } %>
+<%- include('partials/footer') %>

@@ -1,0 +1,10 @@
+<%- include('partials/header', { title: 'ข้อผิดพลาด' }) %>
+<section class="card">
+  <% if (status === 404) { %>
+  <h1>ไม่พบหน้านี้</h1>
+  <% } else if (!flash) { %>
+  <h1>เกิดข้อผิดพลาด</h1>
+  <% } %>
+  <p><a href="/pprs">กลับไปหน้ารายการ PPR</a></p>
+</section>
+<%- include('partials/footer') %>

@@ -1,0 +1,52 @@
+<%- include('partials/header', { title: def.title }) %>
+<% const has = (k) => def.filters.includes(k); const opts = (kind) => Object.values(m[kind] || {}); %>
+<p><a href="/reports">← รายงานทั้งหมด</a></p>
+<h1><%= def.title %></h1>
+<form method="get" action="/reports/<%= def.code %>" class="card">
+  <input type="hidden" name="go" value="1">
+  <div class="filters">
+    <% if (has('fiscal_year')) { %><label>ปีงบประมาณ <select name="fiscal_year"><% if (def.kind !== 'plan') { %><option value="">ทั้งหมด</option><% } %>
+      <% years.map(y => y.fiscal_year).sort().reverse().forEach(fy => { %><option value="<%= fy %>" <%= String(q.fiscal_year || (def.kind === 'plan' && report ? report.applied.find(a => a[0] === 'ปีงบประมาณ')?.[1] : '')) === String(fy) ? 'selected' : '' %>><%= fy %></option><% }) %></select></label><% } %>
+    <% if (has('department_id')) { %><label>หน่วยงาน <select name="department_id"><option value="">ทั้งหมด</option>
+      <% opts('DEPARTMENT').forEach(d => { %><option value="<%= d.source_id %>" <%= q.department_id === d.source_id ? 'selected' : '' %>><%= d.name %></option><% }) %></select></label><% } %>
+    <% if (has('fund_source_id')) { %><label>แหล่งเงิน <select name="fund_source_id"><option value="">ทั้งหมด</option>
+      <% opts('FUND_SOURCE').forEach(f => { %><option value="<%= f.source_id %>" <%= q.fund_source_id === f.source_id ? 'selected' : '' %>><%= f.name %></option><% }) %></select></label><% } %>
+    <% if (has('budget_category_id')) { %><label>หมวดงบ <select name="budget_category_id"><option value="">ทั้งหมด</option>
+      <% opts('BUDGET_CATEGORY').forEach(c => { %><option value="<%= c.source_id %>" <%= q.budget_category_id === c.source_id ? 'selected' : '' %>><%= c.name %></option><% }) %></select></label><% } %>
+    <% if (has('item')) { %><label>รายการ (รหัส/ชื่อ) <input name="item" value="<%= q.item || '' %>"></label><% } %>
+    <% if (has('state')) { %><label>สถานะ <select name="state"><option value="">ทั้งหมดของรายงานนี้</option>
+      <% (def.states || []).forEach(st => { %><option value="<%= st %>" <%= q.state === st ? 'selected' : '' %>><%= labels.STATES[st] %></option><% }) %></select></label><% } %>
+    <% if (has('date_from')) { %><label><%= def.kind === 'audit' ? 'ตั้งแต่วันที่' : 'ยืนยันครั้งแรกตั้งแต่' %> <input type="date" name="date_from" value="<%= q.date_from || '' %>"></label><% } %>
+    <% if (has('date_to')) { %><label>ถึงวันที่ <input type="date" name="date_to" value="<%= q.date_to || '' %>"></label><% } %>
+    <% if (has('action')) { %><label>การกระทำ (รหัส) <input name="action" value="<%= q.action || '' %>" placeholder="เช่น PPR_CONFIRMED"></label><% } %>
+    <% if (has('entity_type')) { %><label>ประเภทข้อมูล <input name="entity_type" value="<%= q.entity_type || '' %>" placeholder="เช่น ppr"></label><% } %>
+  </div>
+  <p class="actions"><button type="submit" class="primary">แสดงรายงาน</button>
+    <% if (report) { %><a class="button" href="/reports/<%= def.code %>/xlsx?<%= qs %>">ดาวน์โหลด Excel</a><% } %></p>
+</form>
+
+<% if (report) { %>
+<section class="card">
+  <p class="muted small">จัดทำเมื่อ <%= fmt.date(report.generated_at) %><% report.applied.forEach(a => { %> · <%= a[0] %>: <%= a[1] %><% }) %></p>
+  <% report.notes.forEach(n => { %><p class="flash flash-info"><%= n %></p><% }) %>
+  <% if (!report.rows.length) { %><p class="empty">ไม่มีข้อมูลตามเงื่อนไข</p><% } else { %>
+  <p class="muted small"><%= report.rows.length %> แถว</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><% report.columns.forEach(c => { %><th class="<%= ['MONEY','QTY','PERCENT','INT'].includes(c.type) ? 'num' : '' %>"><%= c.label %></th><% }) %></tr></thead>
+    <tbody><% report.rows.forEach(r => { %><tr>
+      <% report.columns.forEach(c => { const v = r[c.key]; %>
+      <td class="<%= ['MONEY','QTY','PERCENT','INT'].includes(c.type) ? 'num' : '' %>"><%=
+        v === null || v === undefined || v === '' ? '-'
+        : typeof v === 'string' && ['MONEY','QTY','PERCENT','INT'].includes(c.type) && Number.isNaN(Number(v)) ? v
+        : c.type === 'MONEY' ? fmt.money(v)
+        : c.type === 'QTY' ? fmt.qty(v)
+        : c.type === 'PERCENT' ? v + '%'
+        : c.type === 'DATETIME' ? fmt.date(v)
+        : v %></td>
+      <% }) %>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+</section>
+<% } %>
+<%- include('partials/footer') %>

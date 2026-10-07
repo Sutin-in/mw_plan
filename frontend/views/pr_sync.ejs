@@ -1,0 +1,57 @@
+<%- include('partials/header', { title: 'ซิงค์ PR กับ HOSxP' }) %>
+<div class="page-head">
+  <h1>ซิงค์ PR กับ HOSxP</h1>
+</div>
+
+<section class="card">
+  <p>ระบบอ่าน PR ของ PPR ที่ยืนยันแล้ว (ไม่รวมฉบับร่าง ไม่รวมที่ยกเลิกแล้ว) จาก HOSxP แบบอ่านอย่างเดียว แล้วเทียบกับ PR ตอนยืนยัน:
+    เปลี่ยนในจุดสำคัญหรือข้อมูลไม่ผ่านกฎควบคุม → "ต้องทบทวน" · PR ถูกยกเลิกใน HOSxP (ตามรหัสที่ฝ่าย IT ยืนยันแล้วเท่านั้น) → ยกเลิก PPR และคืนแผนครั้งเดียว ·
+    ไม่พบ PR หรือข้อมูลผูกกับ PR ไม่ได้แน่นอน → ไม่เปลี่ยนสถานะ แจ้งให้ตรวจสอบ</p>
+  <p class="muted">ซิงค์ครบทุกรายการสำเร็จล่าสุด: <strong><%= lastOk ? fmt.date(lastOk.finished_at) : 'ยังไม่มี' %></strong>
+    · ตารางเวลาอัตโนมัติตั้งใน Windows Task Scheduler โดยฝ่าย IT (คำสั่ง <code>python -m ppr.cli sync-prs --mode NIGHTLY</code>)</p>
+  <% if (can.syncRun) { %>
+  <form method="post" action="/pr-sync" class="inline">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button type="submit" class="primary">ซิงค์ PPR ทั้งหมดตอนนี้</button>
+  </form>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>รอบการซิงค์ล่าสุด</h2>
+  <div class="table-wrap">
+  <table class="grid">
+    <thead><tr><th>รอบ</th><th>เริ่ม</th><th>แบบ</th><th>ขอบเขต</th><th>ผล</th>
+      <th class="num">ตรวจ</th><th class="num">ต้องทบทวน</th><th class="num">ยกเลิก</th><th class="num">ยังไม่ได้ตรวจ</th><th></th></tr></thead>
+    <tbody>
+    <% if (!runs.length) { %><tr><td colspan="10" class="muted">ยังไม่มีการซิงค์ PR</td></tr><% } %>
+    <% runs.forEach(r => { %>
+      <tr class="<%= r.status === 'FAILED' || r.status === 'PARTIAL' ? 'row-bad' : '' %>">
+        <td><a href="/pr-sync/runs/<%= r.id %>">#<%= r.id %></a></td>
+        <td><%= fmt.date(r.started_at) %></td>
+        <td><%= labels.RUN_MODES[r.mode] || r.mode %></td>
+        <td><%= labels.RUN_SCOPES[r.scope] || r.scope %><% if (r.ppr_id) { %> · <a href="/pprs/<%= r.ppr_id %>">PPR</a><% } %><% if (r.retry_of_sync_run_id) { %> · จากรอบ #<%= r.retry_of_sync_run_id %><% } %></td>
+        <td><%= labels.RUN_STATUS[r.status] || r.status %></td>
+        <td class="num"><%= r.checked %></td><td class="num"><%= r.changed %></td><td class="num"><%= r.cancelled %></td>
+        <td class="num"><%= r.not_attempted %></td>
+        <td><% if (can.syncRun && (r.status === 'FAILED' || r.status === 'PARTIAL') && r.scope !== 'PPR_RECHECK') { %>
+          <form method="post" action="/pr-sync" class="inline">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input type="hidden" name="retry_of" value="<%= r.id %>">
+            <button type="submit">ทำซ้ำรายการที่ไม่สำเร็จ</button>
+          </form><% } %></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<% if (governance) { %>
+<section class="card">
+  <h2>รายการที่ต้องตรวจสอบ (เจ้าหน้าที่แผน / ผู้ดูแลระบบ)</h2>
+  <p class="muted">ไม่พบ PR, ข้อมูลจาก HOSxP ใช้ไม่ได้, PR ที่ยกเลิกแล้วกลับมาใช้งาน และข้อผิดพลาด — ระบบไม่เปลี่ยนสถานะเองจากเหตุเหล่านี้ (ยกเว้นข้อมูลไม่ผ่านกฎควบคุม ซึ่งย้ายไป "ต้องทบทวน")</p>
+  <%- include('partials/observation_rows', { rows: governance, showPpr: true }) %>
+</section>
+<% } %>
+<%- include('partials/footer') %>

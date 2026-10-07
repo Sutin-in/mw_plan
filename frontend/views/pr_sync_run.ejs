@@ -1,0 +1,28 @@
+<%- include('partials/header', { title: 'รอบการซิงค์ #' + detail.run.id, refresh: detail.run.status === 'RUNNING' ? 5 : null }) %>
+<% const r = detail.run; %>
+<div class="page-head">
+  <h1>รอบการซิงค์ #<%= r.id %> <span class="state"><%= labels.RUN_STATUS[r.status] || r.status %></span></h1>
+  <a href="/pr-sync">← ซิงค์ PR กับ HOSxP</a>
+</div>
+<% if (r.status === 'RUNNING') { %><p class="flash flash-info">กำลังซิงค์ หน้านี้จะโหลดใหม่เองทุก 5 วินาที</p><% } %>
+<section class="card">
+  <dl class="facts">
+    <dt>แบบ</dt><dd><%= labels.RUN_MODES[r.mode] || r.mode %></dd>
+    <dt>ขอบเขต</dt><dd><%= labels.RUN_SCOPES[r.scope] || r.scope %><% if (r.retry_of_sync_run_id) { %> (ทำซ้ำจากรอบ <a href="/pr-sync/runs/<%= r.retry_of_sync_run_id %>">#<%= r.retry_of_sync_run_id %></a>)<% } %></dd>
+    <dt>เริ่ม – เสร็จ</dt><dd><%= fmt.date(r.started_at) %> – <%= fmt.date(r.finished_at) %></dd>
+    <dt>ตรวจแล้ว</dt><dd><%= r.checked %> · ต้องทบทวน <%= r.changed %> · ยกเลิก <%= r.cancelled %> · เปลี่ยนเล็กน้อย <%= r.non_critical %></dd>
+    <% if (r.not_attempted) { %><dt>ยังไม่ได้ตรวจ</dt><dd><%= r.not_attempted %> รายการ (หยุดเพราะติดต่อ HOSxP ไม่ได้ติดกัน) — ใช้ "ทำซ้ำรายการที่ไม่สำเร็จ"</dd><% } %>
+  </dl>
+  <% if (can.syncRun && (r.status === 'FAILED' || r.status === 'PARTIAL') && r.scope !== 'PPR_RECHECK') { %>
+  <form method="post" action="/pr-sync" class="inline">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="retry_of" value="<%= r.id %>">
+    <button type="submit">ทำซ้ำรายการที่ไม่สำเร็จ</button>
+  </form>
+  <% } %>
+</section>
+<section class="card">
+  <h2>ผลต่อ PPR</h2>
+  <%- include('partials/observation_rows', { rows: detail.observations, showPpr: true }) %>
+</section>
+<%- include('partials/footer') %>

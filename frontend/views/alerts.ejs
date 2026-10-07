@@ -1,0 +1,64 @@
+<%- include('partials/header', { title: 'แจ้งเตือน' }) %>
+<h1>แจ้งเตือน</h1>
+<p class="muted">แสดงในระบบเท่านั้น ไม่ส่งออกนอกโรงพยาบาล · คำนวณจากข้อมูลปัจจุบันทุกครั้งที่เปิดหน้า เมื่อสาเหตุหมดไป (เช่น PPR ถูกยกเลิก ปิดปีงบ หรือซิงค์รอบถัดไปสำเร็จ) รายการจะหายเอง · แจ้งเตือนไม่ได้ห้ามการทำงานใด ๆ (D-33)</p>
+<% const groups = Object.keys(labels.ALERT_TYPES); %>
+<div class="tabs">
+  <% groups.forEach(t => { if (list.counts[t] === undefined) return; %>
+  <a class="tab" href="#<%= t %>"><%= labels.ALERT_TYPES[t] %><span class="count"><%= list.counts[t] %></span></a>
+  <% }) %>
+</div>
+<% if (list.truncated) { %><p class="flash flash-info">แสดงไม่เกิน 500 รายการต่อประเภท ใช้คิวพัสดุหรือหน้าค้นหาเพื่อดูทั้งหมด</p><% } %>
+<% groups.forEach(t => { const rows = list.alerts.filter(a => a.type === t); if (!rows.length) return; %>
+<section class="card" id="<%= t %>">
+  <h2><%= labels.ALERT_TYPES[t] %> (<%= list.counts[t] %>)</h2>
+  <div class="table-wrap"><table class="grid">
+  <% if (t === 'PPR_INACTIVE' || t === 'PR_CHANGED') { %>
+    <thead><tr><th>PPR / PR</th><th>หน่วยงาน</th><th>สถานะ</th><th>เคลื่อนไหวล่าสุด</th></tr></thead>
+    <tbody><% rows.forEach(a => { %><tr>
+      <td><a href="/pprs/<%= a.subject_id %>"><%= a.ppr_number || ('#' + a.subject_id) %></a><div class="muted small">PR <%= a.pr_no %></div></td>
+      <td><%= nameOf(m, 'DEPARTMENT', a.department_id) %></td>
+      <td><span class="state state-<%= a.state %>"><%= labels.STATES[a.state] || a.state %></span></td>
+      <td><%= fmt.date(a.since) %><div class="muted small"><%= a.days_inactive %> วันที่แล้ว</div></td>
+    </tr><% }) %></tbody>
+  <% } else if (t === 'SYNC_FAILURE') { %>
+    <thead><tr><th>การซิงค์</th><th>ผล</th><th>เสร็จเมื่อ</th></tr></thead>
+    <tbody><% rows.forEach(a => { %><tr>
+      <td><% if (a.sync_scope === 'MASTERS') { %><a href="/plans"><%= labels.RUN_SCOPES.MASTERS %></a><% } else { %><a href="/pr-sync/runs/<%= a.subject_id %>"><%= labels.RUN_SCOPES[a.sync_scope] || a.sync_scope %> · รอบที่ <%= a.subject_id %></a><% } %></td>
+      <td><%= labels.RUN_STATUS[a.sync_status] || a.sync_status %><% if (a.sync_pending !== null && a.sync_pending !== undefined) { %><div class="small">ยังค้าง <strong><%= a.sync_pending %></strong> จาก <%= a.sync_failed %> PPR · กด “ทำซ้ำรายการที่ไม่สำเร็จ” ที่หน้าซิงค์ (D-36)</div><% } %></td>
+      <td><%= fmt.date(a.since) %></td>
+    </tr><% }) %></tbody>
+  <% } else { %>
+    <thead><tr><th>รายการแผน</th><th>ปีงบ</th><th>หน่วยงาน</th><th class="num">คงเหลือ (จำนวน)</th><th class="num">คงเหลือ (บาท)</th></tr></thead>
+    <tbody><% rows.forEach(a => { %><tr class="<%= t === 'PLAN_EXHAUSTED' ? 'row-bad' : '' %>">
+      <td><a href="/plans/<%= a.fiscal_year %>"><%= a.item_name || a.item_id %></a><div class="muted small"><%= a.item_code %></div></td>
+      <td><%= a.fiscal_year %></td>
+      <td><%= nameOf(m, 'DEPARTMENT', a.department_id) %></td>
+      <td class="num"><%= fmt.qty(a.remaining_qty) %> <%= a.unit %><% if (a.remaining_qty_percent !== null) { %><div class="muted small"><%= a.remaining_qty_percent %>%</div><% } %></td>
+      <td class="num"><%= fmt.money(a.remaining_amount) %><% if (a.remaining_amount_percent !== null) { %><div class="muted small"><%= a.remaining_amount_percent %>%</div><% } %></td>
+    </tr><% }) %></tbody>
+  <% } %>
+  </table></div>
+</section>
+<% }) %>
+<% if (!list.alerts.length) { %><p class="empty">ไม่มีแจ้งเตือน</p><% } %>
+
+<section class="card">
+  <h2>เกณฑ์การแจ้งเตือน</h2>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>เกณฑ์</th><th class="num">ค่าปัจจุบัน</th><th>ช่วงที่ตั้งได้</th><th>แก้ไขล่าสุด</th><% if (can.alertSettings) { %><th>เปลี่ยน (ผู้ดูแลระบบ)</th><% } %></tr></thead>
+    <tbody><% settings.forEach(s => { const l = labels.ALERT_SETTINGS[s.code] || { name: s.code, unit: '' }; %><tr>
+      <td><%= l.name %></td><td class="num"><%= s.value %> <%= l.unit %></td><td><%= s.min %>–<%= s.max %> <%= l.unit %></td>
+      <td><%= s.updated_at ? fmt.date(s.updated_at) : 'ค่าเริ่มต้น' %></td>
+      <% if (can.alertSettings) { %><td>
+        <form method="post" action="/alert-settings/<%= s.code %>" class="row compact-form">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <label>ค่าใหม่ <input name="value" type="number" min="<%= s.min %>" max="<%= s.max %>" required value="<%= s.value %>"></label>
+          <label>เหตุผล <input name="reason" required></label>
+          <button type="submit">บันทึก</button>
+        </form>
+      </td><% } %>
+    </tr><% }) %></tbody>
+  </table></div>
+  <p class="muted small">การเปลี่ยนเกณฑ์บันทึกในประวัติการตรวจสอบพร้อมเหตุผล · เกณฑ์ “ไม่มีความเคลื่อนไหว” ใช้กับคิวพัสดุด้วย</p>
+</section>
+<%- include('partials/footer') %>

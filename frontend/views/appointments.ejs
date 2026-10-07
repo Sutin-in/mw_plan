@@ -1,0 +1,62 @@
+<%- include('partials/header', { title: 'การแต่งตั้งหัวหน้าพัสดุ' }) %>
+<h1>การแต่งตั้งหัวหน้าเจ้าหน้าที่พัสดุ</h1>
+<p class="muted">แต่งตั้งรายปีงบประมาณ วันที่มีผลต้องอยู่ในปีงบนั้น และในวันหนึ่งมีผู้ได้รับแต่งตั้งได้คนเดียว (D-27) · ไม่มีการลบ · <strong>ส่งมอบงาน</strong> = กำหนดวันสิ้นสุดใหม่ (สิ้นสุดได้ถึงเมื่อวาน แต่ไม่ก่อนวันที่เคยใช้ตรวจสอบ) · <strong>เพิกถอน</strong> = แต่งตั้งผิดพลาด ทำได้เฉพาะที่ยังไม่เคยใช้ตรวจสอบ PPR</p>
+
+<% if (can.manageAppointments) { %>
+<section class="card">
+  <h2>แต่งตั้งใหม่</h2>
+  <% if (!candidates.length) { %>
+  <p class="muted">ยังไม่มีผู้ใช้ที่มีบทบาท “หัวหน้าเจ้าหน้าที่พัสดุ” — ให้บทบาทก่อน แล้วจึงแต่งตั้ง</p>
+  <% } else { %>
+  <form method="post" action="/appointments" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>ผู้ได้รับแต่งตั้ง <select name="user_id" required>
+      <% candidates.forEach(c => { %><option value="<%= c.id %>"><%= c.display_name || c.username %> (<%= c.username %>)</option><% }) %>
+    </select></label>
+    <label>ปีงบประมาณ <input name="fiscal_year" inputmode="numeric" required value="<%= info ? info.current_fiscal_year : '' %>"></label>
+    <label>มีผลตั้งแต่ <input type="date" name="effective_from" required></label>
+    <label>ถึง (เว้นว่าง = สิ้นปีงบ) <input type="date" name="effective_to"></label>
+    <button type="submit" class="primary">แต่งตั้ง</button>
+  </form>
+  <% } %>
+</section>
+<% } %>
+
+<section class="card">
+  <h2>ประวัติการแต่งตั้ง</h2>
+  <% if (!appointments.length) { %><p class="empty">ยังไม่มีการแต่งตั้ง</p><% } else { %>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>ผู้ได้รับแต่งตั้ง</th><th>ปีงบ</th><th>มีผลตั้งแต่</th><th>ถึง</th><th>สถานะ</th><th>วันนี้</th><% if (can.manageAppointments) { %><th>จัดการ</th><% } %></tr></thead>
+    <tbody>
+    <% appointments.forEach(a => { %>
+    <tr>
+      <td><%= a.user_name || ('ผู้ใช้ #' + a.user_id) %><% if (!a.user_has_role) { %><div class="muted small">ไม่มีบทบาทหัวหน้าพัสดุแล้ว (ตรวจสอบไม่ได้)</div><% } %></td>
+      <td><%= a.fiscal_year %></td><td><%= a.effective_from %></td><td><%= a.effective_to || '-' %></td>
+      <td><%= a.status === 'ACTIVE' ? 'ใช้งาน' : 'เพิกถอนแล้ว' %><% if (a.revoke_reason) { %><div class="muted small">เหตุผล: <%= a.revoke_reason %></div><% } %></td>
+      <td><%= a.effective_today ? 'มีผล' : '-' %><% if (a.last_verification_on) { %><div class="muted small">ใช้ตรวจสอบล่าสุด <%= a.last_verification_on %></div><% } %></td>
+      <% if (can.manageAppointments) { %><td>
+        <% if (a.status === 'ACTIVE' && (!info || !a.effective_to || a.effective_to >= info.today)) { %>
+        <form method="post" action="/appointments/<%= a.id %>/end" class="row compact-form">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <label>สิ้นสุดใหม่ <input type="date" name="effective_to" required></label>
+          <label>เหตุผล <input name="reason" required></label>
+          <button type="submit">กำหนดวันสิ้นสุด</button>
+        </form>
+        <% if (!a.last_verification_on) { %>
+        <form method="post" action="/appointments/<%= a.id %>/revoke" class="row compact-form">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <label>เหตุผล (แต่งตั้งผิดพลาด) <input name="reason" required></label>
+          <button type="submit" class="danger">เพิกถอน</button>
+        </form>
+        <% } else { %>
+        <p class="muted small">เคยใช้ตรวจสอบ PPR แล้ว เพิกถอนไม่ได้ — ใช้การกำหนดวันสิ้นสุด หรือเสนอคณะกรรมการ (D-27)</p>
+        <% } %>
+        <% } %>
+      </td><% } %>
+    </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</section>
+<%- include('partials/footer') %>

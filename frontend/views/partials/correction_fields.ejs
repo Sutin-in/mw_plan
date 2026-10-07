@@ -1,0 +1,4 @@
+<% if (year.state === 'APPROVED') { %>
+<label>เหตุผลการแก้ (D-15) <input name="correction_reason" required value="<%= typeof v !== 'undefined' && v.correction_reason ? v.correction_reason : '' %>"></label>
+<label>เลขที่เอกสารที่อนุมัติ <input name="source_reference" required value="<%= typeof v !== 'undefined' && v.source_reference ? v.source_reference : '' %>"></label>
+<% } %>

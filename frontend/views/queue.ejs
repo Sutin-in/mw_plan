@@ -1,0 +1,22 @@
+<%- include('partials/header', { title: 'คิวพัสดุ' }) %>
+<h1>คิวงานพัสดุ</h1>
+<section class="card">
+  <% if (queue.can_verify) { %>
+    <p class="badge ok">คุณเป็นหัวหน้าเจ้าหน้าที่พัสดุที่ได้รับแต่งตั้งวันนี้ (ปีงบ <%= queue.appointment.fiscal_year %>, ถึง <%= queue.appointment.effective_to %>) — กด “ตรวจสอบและยืนยันแล้ว” ได้ในหน้ารายละเอียด PPR</p>
+  <% } else { %>
+    <p class="muted">คุณดูคิวได้ แต่การกด “ตรวจสอบและยืนยันแล้ว” ทำได้เฉพาะหัวหน้าเจ้าหน้าที่พัสดุที่ได้รับแต่งตั้งและมีผลในวันนี้ (D-28)</p>
+  <% } %>
+  <nav class="tabs" aria-label="กลุ่มงาน">
+    <% const names = { waiting: 'รอตรวจสอบ', verified: 'ตรวจสอบแล้ว', changed: 'PR เปลี่ยน ต้องทบทวน', unlocked: 'ปลดล็อกเพื่อแก้ไข', cancelled: 'ยกเลิก', inactive: 'ไม่มีความเคลื่อนไหว > ' + queue.inactive_days + ' วัน' }; %>
+    <% const keep = new URLSearchParams(q).toString(); %>
+    <% buckets.forEach(b => { %><a href="/procurement?bucket=<%= b %><%= keep ? '&' + keep : '' %>" class="tab <%= b === bucket ? 'active' : '' %>" <%= b === bucket ? 'aria-current=page' : '' %>><%= names[b] %> <span class="count"><%= queue.counts[b] %></span></a><% }) %>
+  </nav>
+  <form method="get" action="/procurement" class="stack">
+    <input type="hidden" name="bucket" value="<%= bucket %>">
+    <%- include('partials/search_fields', { q, showState: false }) %>
+    <div class="actions"><button type="submit">กรอง</button><a href="/procurement?bucket=<%= bucket %>">ล้างเงื่อนไข</a></div>
+  </form>
+</section>
+<% if (!queue.items.length) { %><p class="empty">ไม่มีรายการในกลุ่มนี้</p>
+<% } else { %><%- include('partials/ppr_table', { rows: queue.items }) %><% } %>
+<%- include('partials/footer') %>

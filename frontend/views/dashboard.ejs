@@ -1,0 +1,90 @@
+<%- include('partials/header', { title: 'แดชบอร์ด' }) %>
+<% const org = dash.department_scope === null; const low = dash.alerts.low_percent; const deptName = dash.department_scope ? nameOf(m, 'DEPARTMENT', dash.department_scope) : ''; %>
+<div class="page-head">
+  <h1>แดชบอร์ด<% if (deptName) { %> · <%= deptName %><% } %></h1>
+  <form method="get" action="/dashboard" class="row compact-form">
+    <label>ปีงบประมาณ <select name="fiscal_year">
+      <% const fys = years.map(y => y.fiscal_year); if (!fys.includes(dash.fiscal_year)) fys.push(dash.fiscal_year); fys.sort().reverse().forEach(fy => { %>
+      <option value="<%= fy %>" <%= fy === dash.fiscal_year ? 'selected' : '' %>><%= fy %></option><% }) %>
+    </select></label>
+    <button type="submit">แสดง</button>
+  </form>
+</div>
+<p class="muted">
+  <% if (dash.plan_year_state) { %>แผนปีงบ <%= dash.fiscal_year %>: <strong><%= labels.PLAN_YEAR_STATES[dash.plan_year_state] || dash.plan_year_state %></strong><% } else { %>ยังไม่มีแผนของปีงบ <%= dash.fiscal_year %><% } %>
+  · <%= org ? 'ทุกหน่วยงาน' : (deptName ? 'แผนเฉพาะหน่วยงานของคุณ' : 'บัญชีนี้ไม่มีหน่วยงาน จึงไม่แสดงแผน') %><% if (dash.own_pprs_only) { %> · PPR เฉพาะที่คุณสร้าง<% } %> · ข้อมูลอ่านอย่างเดียว ไม่มีการบันทึกใด ๆ จากหน้านี้
+</p>
+
+<section class="kpis" aria-label="สรุปแผน">
+  <div class="kpi"><div class="kpi-label">วงเงินตามแผน</div><div class="kpi-value"><%= fmt.money(dash.totals.planned_amount) %></div><div class="muted small"><%= dash.totals.items %> รายการแผน</div></div>
+  <div class="kpi"><div class="kpi-label">ขอใช้แผนแล้ว</div><div class="kpi-value"><%= fmt.money(dash.totals.used_amount) %></div></div>
+  <div class="kpi"><div class="kpi-label">คงเหลือ</div><div class="kpi-value"><%= fmt.money(dash.totals.remaining_amount) %></div>
+    <%- include('partials/meter', { planned_: dash.totals.planned_amount, remaining_: dash.totals.remaining_amount, low_: low }) %></div>
+  <div class="kpi"><div class="kpi-label">รายการใกล้หมด / หมดแล้ว</div><div class="kpi-value"><%= dash.totals.low %> / <%= dash.totals.exhausted %></div><div class="muted small">ใกล้หมด = เหลือไม่เกิน <%= low %>%</div></div>
+</section>
+
+<section class="card">
+  <h2>แจ้งเตือน</h2>
+  <div class="tabs">
+    <% Object.keys(labels.ALERT_TYPES).forEach(t => { if (dash.alerts.counts[t] === undefined) return; %>
+    <a class="tab" href="/alerts#<%= t %>"><%= labels.ALERT_TYPES[t] %><span class="count"><%= dash.alerts.counts[t] %></span></a>
+    <% }) %>
+  </div>
+  <p class="muted small">ไม่มีความเคลื่อนไหวเกิน <%= dash.alerts.inactive_days %> วัน · แจ้งเตือนคำนวณจากข้อมูลปัจจุบันทุกครั้ง หายเองเมื่อสาเหตุหมดไป (D-33)</p>
+</section>
+
+<section class="card">
+  <h2>PPR ปีงบ <%= dash.fiscal_year %></h2>
+  <div class="tabs">
+    <% Object.keys(labels.STATES).forEach(st => { %>
+    <a class="tab" href="/search?go=1&fiscal_year=<%= dash.fiscal_year %>&state=<%= st %>"><%= labels.STATES[st] %><span class="count"><%= dash.ppr_counts[st] || 0 %></span></a>
+    <% }) %>
+  </div>
+  <% if (can.planManage || can.unlock || can.syncRead) { %>
+  <p class="actions">
+    <% if (can.queue) { %><a class="button" href="/procurement?bucket=changed">PR เปลี่ยน ต้องทบทวน</a>
+    <a class="button" href="/procurement?bucket=unlocked">ปลดล็อกเพื่อแก้ไข</a>
+    <a class="button" href="/procurement?bucket=inactive">ไม่มีความเคลื่อนไหว</a><% } %>
+    <% if (can.syncRead) { %><a class="button" href="/pr-sync">ผลการซิงค์ / ข้อผิดพลาด</a><% } %>
+    <a class="button" href="/plans/<%= dash.fiscal_year %>">แผนปีงบ <%= dash.fiscal_year %></a>
+  </p>
+  <% } %>
+  <% if (dash.recent.length) { %><h3>ล่าสุด</h3><%- include('partials/ppr_table', { rows: dash.recent }) %><% } %>
+</section>
+
+<% if (!org && items) { %>
+<section class="card">
+  <h2>แผนของหน่วยงาน</h2>
+  <%- include('partials/balance_table', { rows: items, low }) %>
+</section>
+<% } %>
+
+<% if (org) { %>
+<section class="card">
+  <h2>รายการที่ใกล้หมด / หมดแล้ว</h2>
+  <% if (!dash.near_exhaustion.length) { %><p class="empty">ไม่มี<% if (dash.plan_year_state !== 'ACTIVE') { %> (แจ้งเตือนเฉพาะแผนที่เปิดใช้งาน)<% } %></p><% } else { %>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>รายการ</th><th>หน่วยงาน</th><th class="num">คงเหลือ (จำนวน)</th><th class="num">คงเหลือ (บาท)</th><th>สถานะ</th></tr></thead>
+    <tbody><% dash.near_exhaustion.forEach(a => { %>
+      <tr class="<%= a.type === 'PLAN_EXHAUSTED' ? 'row-bad' : '' %>">
+        <td><%= a.item_name || a.item_id %><div class="muted small"><%= a.item_code %></div></td>
+        <td><%= nameOf(m, 'DEPARTMENT', a.department_id) %></td>
+        <td class="num"><%= fmt.qty(a.remaining_qty) %> <%= a.unit %><% if (a.remaining_qty_percent !== null) { %><div class="muted small"><%= a.remaining_qty_percent %>%</div><% } %></td>
+        <td class="num"><%= fmt.money(a.remaining_amount) %><% if (a.remaining_amount_percent !== null) { %><div class="muted small"><%= a.remaining_amount_percent %>%</div><% } %></td>
+        <td><span class="badge <%= a.type === 'PLAN_EXHAUSTED' ? 'bad' : '' %>"><%= labels.ALERT_TYPES[a.type] %></span></td>
+      </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>ตามหน่วยงาน</h2>
+  <%- include('partials/totals_table', { rows: dash.by_department, first: 'หน่วยงาน', label: r => nameOf(m, 'DEPARTMENT', r.department_id), low }) %>
+</section>
+<section class="card">
+  <h2>ตามแหล่งเงิน / หมวดงบ</h2>
+  <%- include('partials/totals_table', { rows: dash.by_category, first: 'แหล่งเงิน / หมวดงบ', label: r => nameOf(m, 'FUND_SOURCE', r.fund_source_id) + ' / ' + nameOf(m, 'BUDGET_CATEGORY', r.budget_category_id), low }) %>
+</section>
+<% } %>
+<p class="muted small">การปรับแผน แผนกลาง และแผนซื้อแทน จะแสดงในหน้านี้เมื่อเพิ่มฟีเจอร์เหล่านั้น (Wave 7)</p>
+<%- include('partials/footer') %>

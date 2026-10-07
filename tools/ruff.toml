@@ -1,0 +1,5 @@
+# Command-line tools print their results by design.
+extend = "../backend/pyproject.toml"
+
+[lint]
+extend-ignore = ["T201"]

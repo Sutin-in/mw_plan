@@ -1,0 +1,55 @@
+# ไฟล์ query สำเร็จรูป สำหรับอ่าน HOSxP ผ่าน view ใน ppr_interface_views.sql
+# Ready-made site query file for the interface views in ppr_interface_views.sql.
+#
+# วิธีใช้: คัดลอกไฟล์นี้ไปเป็น hosxp_queries.toml ที่โฟลเดอร์หลักของระบบ
+# (หรือตั้ง PPR_HOSXP_QUERIES ให้ชี้มาที่ไฟล์นี้) แล้วรัน
+#   .venv\Scripts\python -m ppr.cli hosxp-check --pr <เลขที่ PR จริง>
+# ไม่ต้องแก้ query ใด ๆ ในไฟล์นี้ ถ้าสร้าง view ตามแบบครบแล้ว
+#
+# [status_map] ยังว่างโดยตั้งใจ: ใส่ได้เมื่อมีหลักฐานจาก HOSxP จริงครบ (D-30)
+# ตัวอย่างรูปแบบ (ห้ามใช้ค่านี้จริง):  "<ค่าสถานะดิบ>" = "CANCELLED"
+
+[status_map]
+
+[queries.get_pr]
+sql = '''
+SELECT pr_id, pr_no, pr_date, fiscal_year, department_id, fund_source_id,
+       budget_category_id, requester_id, requester_name, total_amount,
+       native_status, last_modified_at
+FROM ppr_interface.pr_header
+WHERE pr_no = :pr_no
+'''
+
+[queries.get_pr_items]
+sql = '''
+SELECT pr_item_id, item_id, item_code, item_name, qty, unit, unit_price, amount
+FROM ppr_interface.pr_item
+WHERE pr_no = :pr_no
+ORDER BY pr_item_id
+'''
+
+[queries.get_departments]
+sql = "SELECT source_id, code, name, active FROM ppr_interface.department"
+
+[queries.get_items]
+sql = "SELECT source_id, code, name, unit, active FROM ppr_interface.item"
+
+[queries.get_fund_sources]
+sql = "SELECT source_id, code, name, active FROM ppr_interface.fund_source"
+
+[queries.get_budget_categories]
+sql = "SELECT source_id, code, name, parent_source_id, active FROM ppr_interface.budget_category"
+
+[queries.get_login_user]
+sql = '''
+SELECT source_id, username, display_name, department_id, password_hash, active
+FROM ppr_interface.app_user
+WHERE username = :username
+'''
+
+[queries.get_user_profile]
+sql = '''
+SELECT source_id, username, display_name, department_id, active
+FROM ppr_interface.app_user
+WHERE source_id = :source_id
+'''

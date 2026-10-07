@@ -1,0 +1,15 @@
+<% if (!rows.length) { %><p class="empty">ไม่มีรายการแผน</p><% } else { %>
+<div class="table-wrap"><table class="grid">
+  <thead><tr><th><%= first %></th><th class="num">รายการ</th><th class="num">วงเงินตามแผน</th><th class="num">ขอใช้แล้ว</th><th class="num">คงเหลือ</th><th>สัดส่วนคงเหลือ</th><th class="num">ใกล้หมด / หมด</th></tr></thead>
+  <tbody><% rows.forEach(r => { %>
+    <tr>
+      <td><%= label(r) %></td>
+      <td class="num"><%= r.items %></td>
+      <td class="num"><%= fmt.money(r.planned_amount) %></td>
+      <td class="num"><%= fmt.money(r.used_amount) %></td>
+      <td class="num"><%= fmt.money(r.remaining_amount) %></td>
+      <td><%- include('meter', { planned_: r.planned_amount, remaining_: r.remaining_amount, low_: low }) %></td>
+      <td class="num"><%= r.low %> / <%= r.exhausted %></td>
+    </tr><% }) %></tbody>
+</table></div>
+<% } %>

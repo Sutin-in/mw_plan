@@ -1,0 +1,21 @@
+{
+  "name": "ppr-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PPR Control - Phase 1 user interface (D-24): server-rendered Thai pages calling the Python API",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cookie-parser": "1.4.7",
+    "ejs": "3.1.10",
+    "express": "5.2.1"
+  }
+}

@@ -1,0 +1,127 @@
+# HOSxP site query file - EXAMPLE / TEMPLATE
+#
+# Copy to  hosxp_queries.toml  (git-ignored) and write one read-only query per operation
+# AFTER inspecting this hospital's HOSxP schema (python -m ppr.cli hosxp-schema).
+# This template deliberately contains NO HOSxP table or column names: they are not
+# guessed (spec §47). Each query must return columns named exactly as listed below
+# (use "AS <name>"). Rules checked when the file is loaded:
+#   * one statement, starting with SELECT or WITH; no INSERT/UPDATE/DELETE/SET/... words;
+#   * named parameters exactly as listed (e.g. :pr_no);
+#   * the database account must be READ-ONLY; queries also run in a READ ONLY transaction.
+# Test with:  python -m ppr.cli hosxp-check --pr <PR number>
+#
+# Notes for the site author:
+#   * fiscal_year = the PR budget year ("ปีงบประมาณ") as the B.E. year, e.g. 2568 (D-18).
+#   * total_amount = the PR header total; amounts are VAT-inclusive estimates (D-17).
+#   * pr_date must be a DATE (cast if HOSxP stores a datetime).
+#   * native_status = the raw HOSxP PR status; map it below in [status_map].
+#   * active must be true/false (or 1/0).
+#   * Login (D-25): HOSxP stores an MD5 hash of the password. get_login_user returns the
+#     stored hash as password_hash (hexadecimal); this system hashes what the user types
+#     and compares. The hash is never stored, logged or shown by this system.
+#     COALESCE(hash, '') so a user without a password is refused as "wrong password", not
+#     as a configuration error. When the HOSxP user accounts are on another server, set
+#     PPR_HOSXP_AUTH_DATABASE_URL: get_login_user / get_user_profile then run there (D-41),
+#     and department_id may be left out (the PPR takes the PR's department).
+#   * ids as TEXT: PostgreSQL  x::text  or  CAST(x AS TEXT)  - NOT "AS CHAR", which in
+#     PostgreSQL is ONE character (it would cut '125' to '1');  MySQL/MariaDB  CAST(x AS CHAR).
+#   * no invented defaults: never COALESCE a missing value into a made-up one (a year, a
+#     date, 0, 1, 'Item'); a missing required value must stay missing so it is reported.
+
+# [status_map]   # native HOSxP PR status -> one of: DRAFT, ACTIVE, APPROVED, CANCELLED, COMPLETED, UNKNOWN
+# "<native value>" = "CANCELLED"
+
+# ---------------------------------------------------------------- get_pr
+# parameters: :pr_no
+# required columns: pr_id, pr_no
+# optional columns: budget_category_id, department_id, fiscal_year, fund_source_id, last_modified_at, native_status, pr_date, requester_id, requester_name, total_amount
+# [queries.get_pr]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- get_pr_items
+# parameters: :pr_no
+# required columns: amount, item_id, pr_item_id, qty, unit_price
+# optional columns: item_code, item_name, unit
+# [queries.get_pr_items]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- get_departments
+# parameters: none
+# required columns: active, code, name, source_id
+# optional columns: none
+# [queries.get_departments]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- get_items
+# parameters: none
+# required columns: active, code, name, source_id, unit
+# optional columns: none
+# [queries.get_items]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- get_fund_sources
+# parameters: none
+# required columns: active, code, name, source_id
+# optional columns: none
+# [queries.get_fund_sources]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- get_budget_categories
+# parameters: none
+# required columns: active, code, name, source_id
+# optional columns: parent_source_id
+# [queries.get_budget_categories]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- get_budget_snapshot  (optional: not used by current features)
+# parameters: :budget_category_id, :fund_source_id
+# required columns: as_of, budget_category_id, fund_source_id
+# optional columns: approved_budget, remaining, used_or_reserved
+# [queries.get_budget_snapshot]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- stock movements  (optional, D-39: report only)
+# Issues from the central store to departments and returns from departments to the store,
+# shown in the "Central Plan Usage" report. HOSxP stays their source of truth: they are read
+# when the report runs, never stored here and never posted to the Plan Ledger.
+# Written in its own [stock_movement] section (NOT under [queries]); it is used only with the
+# verification record and the kind mapping below. Anything wrong in this section only makes
+# the report say "ยังไม่มีข้อมูล" - it never stops the rest of this file from loading (a TOML
+# syntax error or a misspelt section name still stops the file, as anywhere in it).
+# parameters: :date_from, :date_to  (DATE, inclusive; the fiscal year so far)
+# required columns: department_id, item_id, movement_date, movement_id, native_kind, qty
+# optional columns: last_modified_at
+#   * one row per movement of the CENTRAL store only; movement_id unique; rows only inside
+#     the date range; movement_date a DATE.
+#   * qty > 0 for issues AND returns: the direction comes from native_kind (if HOSxP records a
+#     return as a negative issue, give it its own native_kind and a positive qty in the query).
+#   * department_id = the department that received (issue) or gave back (return) the goods,
+#     with the SAME id as get_departments returns (and item_id the same id as get_items).
+#   * qty in the item's unit as in get_items / the PR lines (convert in the query if HOSxP's
+#     store counts in another unit), so issues can be set against what PPRs bought.
+#   * native_kind = HOSxP's own movement kind, mapped below. A movement of an unmapped kind
+#     makes that item's and department's figures "ยังไม่มีข้อมูล" (never counted as zero).
+#     With no RETURN kind mapped, returns and net use show "ยังไม่มีข้อมูล"
+#     (IT confirms how HOSxP records a return).
+# [stock_movement]
+# sql = '''SELECT ... '''
+# verified_by = "<name / position in IT>"
+# verified_on = 2026-10-15
+# reference = "<where the verification is recorded, e.g. a ticket or memo number>"
+# [stock_movement.kind_map]
+# "<native issue kind>" = "ISSUE"
+# "<native return kind>" = "RETURN"
+
+# ---------------------------------------------------------------- get_login_user  (login, D-25)
+# parameters: :username
+# required columns: password_hash, source_id, username
+# optional columns: active, department_id, display_name
+# [queries.get_login_user]
+# sql = '''SELECT ... '''
+
+# ---------------------------------------------------------------- get_user_profile  (login, D-25)
+# parameters: :source_id
+# required columns: source_id, username
+# optional columns: active, department_id, display_name
+# [queries.get_user_profile]
+# sql = '''SELECT ... '''

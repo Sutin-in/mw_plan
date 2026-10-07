@@ -1,0 +1,83 @@
+<%- include('partials/header', { title: item ? 'แก้รายการแผน' : 'เพิ่มรายการแผน' }) %>
+<% const fy = year.fiscal_year; const action = item ? `/plans/${fy}/items/${item.id}` : `/plans/${fy}/items`; const self = item ? `/plans/${fy}/items/${item.id}/edit` : `/plans/${fy}/items/new`; const depts = Object.values(m.DEPARTMENT || {}).filter(d => d.active); const chosen = v.item_id && m.ITEM ? m.ITEM[v.item_id] : null; %>
+<h1><%= item ? 'แก้รายการแผน' : 'เพิ่มรายการแผน' %> · ปีงบ <%= fy %></h1>
+<p><a href="/plans/<%= fy %>">← กลับไปแผนปีงบ <%= fy %></a></p>
+
+<section class="card">
+  <h2>ค้นหาสินค้า/พัสดุจาก HOSxP</h2>
+  <form method="get" action="<%= self %>" class="row">
+    <label>รหัสหรือชื่อ <input name="find" value="<%= find %>" required></label>
+    <button type="submit">ค้นหา</button>
+  </form>
+  <% if (found) { %>
+    <% if (!found.length) { %><p class="empty">ไม่พบ</p><% } else { %>
+    <div class="table-wrap"><table class="grid compact">
+      <thead><tr><th>รหัส</th><th>ชื่อ</th><th>หน่วย</th><th></th></tr></thead>
+      <tbody><% found.forEach(r => { %><tr>
+        <td><%= r.code %></td><td><%= r.name %><% if (!r.active) { %> <span class="badge bad">ปิดใช้งาน</span><% } %></td><td><%= r.unit || '' %></td>
+        <td><% if (r.active) { %><a href="<%= self %>?item_id=<%= encodeURIComponent(r.source_id) %>">เลือก</a><% } %></td>
+      </tr><% }) %></tbody>
+    </table></div>
+    <p class="muted small">แสดงไม่เกิน 50 รายการ · เลือกแล้วค่าที่กรอกในแบบฟอร์มด้านล่างจะต้องกรอกใหม่</p>
+    <% } %>
+  <% } %>
+</section>
+
+<form method="post" action="<%= action %>" class="card stack">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <% const coded = item && item.item_id; %>
+  <p class="muted small">ผู้ขอเลือกรายการแผนนี้เองตอนทำ PPR จากชื่อรายการและหน่วยนับ (D-43) · รหัสสินค้า HOSxP ไม่บังคับ: ถ้าใส่ ระบบใช้ชื่อและหน่วยนับจาก HOSxP · แผนซื้อแทนต้องมีรหัส</p>
+  <label>สินค้า/พัสดุ (รหัส HOSxP, ไม่บังคับ) <input name="item_id" <%= coded ? 'required' : '' %> value="<%= v.item_id || '' %>"></label>
+  <% if (chosen) { %><p class="muted small"><%= chosen.code %> · <%= chosen.name %> · <%= chosen.unit || '' %></p><% } %>
+  <% if (!coded) { %>
+  <div class="row">
+    <label>ชื่อรายการ (เมื่อไม่ใส่รหัส) <input name="item_name" maxlength="500" value="<%= v.item_id ? '' : (v.item_name || '') %>"></label>
+    <label>หน่วยนับ (ให้ตรงกับที่หน่วยงานเปิด PR ใน HOSxP) <input name="unit" maxlength="100" value="<%= v.item_id ? '' : (v.unit || '') %>"></label>
+  </div>
+  <% } %>
+  <label>วงเงิน (แหล่งเงิน / หมวดงบ) <select name="plan_budget_id" required>
+    <% budgets.forEach(b => { %><option value="<%= b.id %>" <%= Number(v.plan_budget_id) === b.id ? 'selected' : '' %>><%= nameOf(m, 'FUND_SOURCE', b.fund_source_id) %> / <%= nameOf(m, 'BUDGET_CATEGORY', b.budget_category_id) %></option><% }) %>
+  </select></label>
+  <% if (!budgets.length) { %><p class="problems">ต้องเพิ่มวงเงินก่อน</p><% } %>
+  <label>ประเภทแผน <select name="plan_type">
+    <% planTypes.forEach(t => { %><option value="<%= t %>" <%= v.plan_type === t ? 'selected' : '' %>><%= labels.PLAN_TYPES[t] %></option><% }) %>
+  </select></label>
+  <label>หน่วยงานเจ้าของแผน <select name="owner_department_id" required>
+    <% depts.forEach(d => { %><option value="<%= d.source_id %>" <%= v.owner_department_id === d.source_id ? 'selected' : '' %>><%= d.name %></option><% }) %>
+  </select></label>
+  <label>หน่วยงานผู้ซื้อ (แผนกลาง: คลังที่ซื้อ / แผนซื้อแทน) <select name="purchasing_department_id"><option value="">-</option>
+    <% depts.forEach(d => { %><option value="<%= d.source_id %>" <%= v.purchasing_department_id === d.source_id ? 'selected' : '' %>><%= d.name %></option><% }) %>
+  </select></label>
+  <div class="row">
+    <label>จำนวนตามแผน <input name="planned_qty" inputmode="decimal" required value="<%= v.planned_qty || '' %>"></label>
+    <label>ราคาประมาณต่อหน่วย <input name="estimated_unit_price" inputmode="decimal" required value="<%= v.estimated_unit_price || '' %>"></label>
+    <label>วงเงินของรายการ (บาท) <input name="planned_amount" inputmode="decimal" required value="<%= v.planned_amount || '' %>"></label>
+  </div>
+  <div class="row">
+    <% ['q1', 'q2', 'q3', 'q4'].forEach((q, i) => { %><label>ไตรมาส <%= i + 1 %> <input name="<%= q %>" inputmode="decimal" value="<%= v[q] || '' %>"></label><% }) %>
+  </div>
+  <fieldset>
+    <legend>ความต้องการรายหน่วยงาน (เฉพาะแผนซื้อแทน)</legend>
+    <% for (let i = 0; i < demandRows; i++) { const dm = (v.demands || [])[i] || {}; %>
+    <div class="row compact-form">
+      <label>หน่วยงาน <select name="demand_department"><option value="">-</option>
+        <% depts.forEach(d => { %><option value="<%= d.source_id %>" <%= dm.department_id === d.source_id ? 'selected' : '' %>><%= d.name %></option><% }) %>
+      </select></label>
+      <label>จำนวน <input name="demand_qty" inputmode="decimal" value="<%= dm.demand_qty || '' %>"></label>
+    </div>
+    <% } %>
+  </fieldset>
+  <label>หมายเหตุ <input name="note" value="<%= v.note || '' %>"></label>
+  <%- include('partials/correction_fields', { year, v }) %>
+  <p class="muted small">ระบบตรวจทุกค่าอีกครั้งตอนบันทึก (รหัสต้องมีในข้อมูลหลักที่ซิงค์จาก HOSxP และยังใช้งาน)</p>
+  <button type="submit" class="primary"><%= item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ' %></button>
+</form>
+
+<% if (item) { %>
+<form method="post" action="/plans/<%= fy %>/items/<%= item.id %>/delete" class="card row">
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <%- include('partials/correction_fields', { year }) %>
+  <button type="submit" class="danger">ลบรายการแผนนี้</button>
+</form>
+<% } %>
+<%- include('partials/footer') %>

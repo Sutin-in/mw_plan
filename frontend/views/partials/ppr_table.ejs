@@ -1,0 +1,23 @@
+<div class="table-wrap">
+<table class="grid">
+  <thead><tr>
+    <th>เลขที่ PPR</th><th>เลข PR</th><th>ปีงบ</th><th>หน่วยงาน</th><th>หมวดงบ</th>
+    <th class="num">ยอดที่ขอ (บาท)</th><th>สถานะ</th><th>ฉบับที่</th><th>ปรับปรุงล่าสุด</th>
+  </tr></thead>
+  <tbody>
+  <% rows.forEach(p => { %>
+  <tr>
+    <td><a href="/pprs/<%= p.id %>"><%= p.ppr_number || '(ร่าง)' %></a></td>
+    <td><a href="/pprs/<%= p.id %>"><%= p.pr_no %></a></td>
+    <td><%= p.fiscal_year %></td>
+    <td><%= nameOf(m, 'DEPARTMENT', p.department_id) %></td>
+    <td><%= p.allocations.map(a => nameOf(m, 'BUDGET_CATEGORY', a.budget_category_id)).join(', ') || '-' %></td>
+    <td class="num"><%= fmt.money(p.required_amount) %></td>
+    <td><span class="state state-<%= p.state %>"><%= labels.STATES[p.state] || p.state %></span></td>
+    <td><%= p.version || '-' %></td>
+    <td><%= fmt.date(p.updated_at) %></td>
+  </tr>
+  <% }) %>
+  </tbody>
+</table>
+</div>

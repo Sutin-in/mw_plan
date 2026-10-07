@@ -1,0 +1,28 @@
+<%- include('partials/header', { title: 'เข้าสู่ระบบ' }) %>
+<section class="card narrow">
+  <h1>เข้าสู่ระบบ</h1>
+  <p class="muted">ใช้ชื่อผู้ใช้และรหัสผ่านเดียวกับ HOSxP</p>
+  <form method="post" action="/login" class="stack">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>ชื่อผู้ใช้ <input name="username" value="<%= username %>" autocomplete="username" required autofocus></label>
+    <label>รหัสผ่าน <input name="password" type="password" autocomplete="current-password" required></label>
+    <button type="submit" class="primary">เข้าสู่ระบบ</button>
+  </form>
+  <% if (info && info.demo) { %>
+  <div class="demo-help">
+    <h2>ผู้ใช้ทดลอง</h2>
+    <p>รหัสผ่านทุกบัญชี: <code>demo1234</code></p>
+    <table class="compact">
+      <tr><td><code>demo_req_ent</code></td><td>ผู้ขอ แผนก ENT</td></tr>
+      <tr><td><code>demo_req_or</code></td><td>ผู้ขอ ห้องผ่าตัด (OR)</td></tr>
+      <tr><td><code>demo_plan</code></td><td>เจ้าหน้าที่แผน (ปลดล็อกได้)</td></tr>
+      <tr><td><code>demo_proc</code></td><td>เจ้าหน้าที่พัสดุ (ดูคิวได้ ตรวจสอบไม่ได้)</td></tr>
+      <tr><td><code>demo_head</code></td><td>หัวหน้าเจ้าหน้าที่พัสดุ ปีนี้ (กด “ตรวจสอบและยืนยันแล้ว” ได้)</td></tr>
+      <tr><td><code>demo_head_old</code></td><td>หัวหน้าพัสดุ ปีก่อน (ตรวจสอบไม่ได้)</td></tr>
+      <tr><td><code>demo_finance</code> / <code>demo_exec</code></td><td>การเงิน / ผู้บริหาร (ดูอย่างเดียว)</td></tr>
+      <tr><td><code>demo_admin</code></td><td>ผู้ดูแลระบบ</td></tr>
+    </table>
+  </div>
+  <% } %>
+</section>
+<%- include('partials/footer') %>

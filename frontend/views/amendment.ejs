@@ -1,0 +1,37 @@
+<%- include('partials/header', { title: 'การปรับแผนครั้งที่ ' + a.amendment_no }) %>
+<% const money = (x) => (x === undefined || x === null ? '-' : fmt.money(x)); const qty = (x) => (x === undefined || x === null ? '-' : fmt.qty(x)); %>
+<h1>การปรับแผนครั้งที่ <%= a.amendment_no %> · ปีงบ <%= a.fiscal_year %></h1>
+<p><a href="/plans/<%= a.fiscal_year %>/amendments">← ประวัติการปรับแผน</a></p>
+<section class="card">
+  <dl class="facts">
+    <dt>เลขที่หนังสืออนุมัติ</dt><dd><%= a.approval_document_no %></dd>
+    <dt>วันที่อนุมัติ</dt><dd><%= a.approval_date %></dd>
+    <dt>บันทึกเมื่อ</dt><dd><%= fmt.date(a.created_at) %></dd>
+    <dt>เหตุผล</dt><dd><%= a.reason %></dd>
+  </dl>
+</section>
+<section class="card">
+  <h2>การเปลี่ยนแปลง (<%= a.changes.length %>)</h2>
+  <div class="table-wrap"><table class="grid compact">
+    <thead><tr><th>การเปลี่ยนแปลง</th><th>รายการ / หมวดงบ</th><th class="num">จำนวน เดิม → ใหม่</th><th class="num">วงเงิน เดิม → ใหม่</th><th>ข้อมูลอื่นที่เปลี่ยน</th></tr></thead>
+    <tbody><% a.changes.forEach(c => { const b = c.before || {}; const n = c.after; %><tr>
+      <td><%= labels.AMEND_CHANGES[c.target + '_' + c.change_kind] || c.change_kind %></td>
+      <% if (c.target === 'ITEM') { %>
+      <td>#<%= c.target_id %> <%= n.item_code || '' %> <%= n.item_name || nameOf(m, 'ITEM', n.item_id) %><br><span class="muted small"><%= nameOf(m, 'DEPARTMENT', n.owner_department_id) %> · <%= nameOf(m, 'FUND_SOURCE', n.fund_source_id) %> / <%= nameOf(m, 'BUDGET_CATEGORY', n.budget_category_id) %></span></td>
+      <td class="num"><%= qty(b.planned_qty) %> → <%= qty(n.planned_qty) %></td>
+      <td class="num"><%= money(b.planned_amount) %> → <%= money(n.planned_amount) %></td>
+      <td><% if (c.before) { %><%= Object.keys(labels.AMEND_FIELDS).filter(k => b[k] !== n[k]).map(k => `${labels.AMEND_FIELDS[k]}: ${nameOf(m, labels.AMEND_FIELD_KINDS[k], b[k])} → ${nameOf(m, labels.AMEND_FIELD_KINDS[k], n[k])}`).join('; ') %><% if (b.estimated_unit_price !== n.estimated_unit_price) { %> ราคาประมาณ: <%= money(b.estimated_unit_price) %> → <%= money(n.estimated_unit_price) %><% } %><% } else { %><%= labels.PLAN_TYPES[n.plan_type] %><% } %></td>
+      <% } else if (c.target === 'DEMAND') { %>
+      <td>รายการแผน #<%= n.plan_item_id %><br><span class="muted small">ความต้องการของ <%= nameOf(m, 'DEPARTMENT', n.department_id) %> (แผนซื้อแทน)</span></td>
+      <td class="num"><%= qty(b.demand_qty) %> → <%= qty(n.demand_qty) %></td>
+      <td class="num">-</td><td><% if (Number(n.demand_qty) === 0) { %>ยกเลิกความต้องการ<% } %></td>
+      <% } else { %>
+      <td><%= nameOf(m, 'FUND_SOURCE', n.fund_source_id) %> / <%= nameOf(m, 'BUDGET_CATEGORY', n.budget_category_id) %></td>
+      <td class="num">-</td>
+      <td class="num"><%= money(b.approved_amount) %> → <%= money(n.approved_amount) %></td><td></td>
+      <% } %>
+    </tr><% }) %></tbody>
+  </table></div>
+  <p class="muted small">ประวัตินี้แก้ไขหรือลบไม่ได้ การแก้การปรับแผนที่ผิดทำได้โดยปรับแผนครั้งใหม่ (D-37)</p>
+</section>
+<%- include('partials/footer') %>

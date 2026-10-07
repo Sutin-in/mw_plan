@@ -1,0 +1,39 @@
+<%# D-43: PR lines with the plan row each one uses. Inputs: report (the PR check), chosen
+    (pr_item_id -> plan row id as text), selectable (show a select per line). A select's value
+    is "pr_item_id:plan_item_id"; the API re-checks every choice. %>
+<% const opts = {}; (report.options || []).forEach(o => { opts[o.id] = o; });
+   const optText = (o) => [
+     o.item_name + ' (' + o.unit + ')',
+     o.item_code ? 'รหัส ' + o.item_code : null,
+     labels.PLAN_TYPES[o.plan_type] || o.plan_type,
+     'คงเหลือ ' + fmt.qty(o.remaining_qty) + ' / ' + fmt.money(o.remaining_amount) + ' บาท',
+   ].filter(Boolean).join(' · '); %>
+<div class="table-wrap"><table class="grid">
+  <thead><tr><th>รายการใน PR</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">ราคาต่อหน่วย</th><th class="num">จำนวนเงิน</th><th>รายการแผนที่ใช้</th><th>ผลตรวจ</th></tr></thead>
+  <tbody>
+  <% report.lines.forEach(l => { const pick = chosen[l.pr_item_id] !== undefined ? String(chosen[l.pr_item_id]) : (l.matched_plan_item_id ? String(l.matched_plan_item_id) : ''); %>
+  <tr class="<%= l.passed ? '' : 'row-bad' %>">
+    <td><%= l.item_name || nameOf(m, 'ITEM', l.item_id) %><div class="muted small"><%= l.item_id %></div></td>
+    <td class="num"><%= fmt.qty(l.qty) %></td>
+    <td><%= l.unit || '-' %></td>
+    <td class="num"><%= fmt.money(l.unit_price) %></td>
+    <td class="num"><%= fmt.money(l.amount) %></td>
+    <td>
+      <% if (!report.lines_checked) { %><span class="muted">-</span>
+      <% } else if (!l.offered.length) { %><span class="muted">ไม่มีรายการแผนที่นับเป็น “<%= l.unit || '-' %>”</span>
+      <% } else if (selectable) { %>
+        <select name="choice" aria-label="รายการแผนของ <%= l.item_name || l.item_id %>">
+          <option value="">— เลือกรายการแผน (<%= l.offered.length %> รายการ) —</option>
+          <% l.offered.forEach(id => { const o = opts[id]; if (!o) return; %>
+          <option value="<%= l.pr_item_id %>:<%= o.id %>" <%= pick === String(o.id) ? 'selected' : '' %>><%= optText(o) %></option>
+          <% }) %>
+        </select>
+      <% } else if (pick && opts[pick]) { %><%= optText(opts[pick]) %>
+      <% } else { %><span class="muted">ยังไม่ได้เลือก</span><% } %>
+    </td>
+    <td><% if (!report.lines_checked) { %><span class="muted">ยังไม่ได้ตรวจ</span><% } else if (l.passed) { %><span class="badge ok">ผ่าน</span><% } else { %>
+      <ul class="plain"><% l.violations.forEach(v => { %><li><%= labels.codeText(v.code, v.message) %></li><% }) %></ul><% } %></td>
+  </tr>
+  <% }) %>
+  </tbody>
+</table></div>

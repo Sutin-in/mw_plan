@@ -1,0 +1,16 @@
+<%- include('partials/header', { title: 'ค้นหา PPR' }) %>
+<h1>ค้นหา PPR</h1>
+<section class="card">
+  <form method="get" action="/search" class="stack">
+    <input type="hidden" name="go" value="1">
+    <%- include('partials/search_fields', { q, showState: true }) %>
+    <div class="actions"><button type="submit" class="primary">ค้นหา</button><a href="/search">ล้างเงื่อนไข</a></div>
+  </form>
+  <p class="muted">ค้นได้ทุกปีงบประมาณ เห็นเฉพาะ PPR ที่สิทธิ์ของคุณเปิดดูได้</p>
+</section>
+<% if (results) { %>
+  <% if (!results.length) { %><p class="empty">ไม่พบ PPR ตามเงื่อนไข</p>
+  <% } else { %><p class="muted">พบ <%= results.length %> รายการ<%= results.length >= 100 ? ' (แสดง 100 รายการแรก ใส่เงื่อนไขเพิ่มเพื่อให้แคบลง)' : '' %></p>
+  <%- include('partials/ppr_table', { rows: results }) %><% } %>
+<% } %>
+<%- include('partials/footer') %>

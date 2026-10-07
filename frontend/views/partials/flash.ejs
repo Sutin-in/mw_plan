@@ -1,0 +1,13 @@
+<% if (flash) { %>
+<section class="flash flash-<%= flash.kind || 'info' %>" role="<%= flash.kind === 'error' ? 'alert' : 'status' %>">
+  <p class="flash-text"><%= flash.text %></p>
+  <% if (flash.kind === 'error' && flash.code) { %><p class="flash-code">รหัส: <code><%= flash.code %></code><% if (flash.message && flash.message !== flash.text) { %> — <%= flash.message %><% } %></p><% } %>
+  <% if (flash.details && flash.details.length) { %>
+  <ul class="flash-details">
+    <% flash.details.forEach(d => { %>
+    <li><% if (d.subject) { %><strong><%= d.subject %></strong>: <% } %><%= d.text || d.message %><% if (d.code) { %> <code><%= d.code %></code><% } %></li>
+    <% }) %>
+  </ul>
+  <% } %>
+</section>
+<% } %>

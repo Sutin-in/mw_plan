@@ -1,0 +1,19 @@
+<div class="filters">
+  <label>เลข PR <input name="pr_no" value="<%= q.pr_no || '' %>"></label>
+  <label>เลขที่ PPR <input name="ppr_number" value="<%= q.ppr_number || '' %>"></label>
+  <label>ชื่อผู้ขอ <input name="requester" value="<%= q.requester || '' %>"></label>
+  <label>รายการ (รหัส/ชื่อ) <input name="item" value="<%= q.item || '' %>"></label>
+  <label>หน่วยงาน <select name="department_id"><option value="">ทั้งหมด</option>
+    <% Object.values(m.DEPARTMENT || {}).forEach(d => { %><option value="<%= d.source_id %>" <%= q.department_id === d.source_id ? 'selected' : '' %>><%= d.name %></option><% }) %></select></label>
+  <label>หมวดงบ <select name="budget_category_id"><option value="">ทั้งหมด</option>
+    <% Object.values(m.BUDGET_CATEGORY || {}).forEach(c => { %><option value="<%= c.source_id %>" <%= q.budget_category_id === c.source_id ? 'selected' : '' %>><%= c.name %></option><% }) %></select></label>
+  <label>แหล่งเงิน <select name="fund_source_id"><option value="">ทั้งหมด</option>
+    <% Object.values(m.FUND_SOURCE || {}).forEach(f => { %><option value="<%= f.source_id %>" <%= q.fund_source_id === f.source_id ? 'selected' : '' %>><%= f.name %></option><% }) %></select></label>
+  <label>ปีงบประมาณ <input name="fiscal_year" inputmode="numeric" value="<%= q.fiscal_year || '' %>" placeholder="เช่น <%= info ? info.current_fiscal_year : '' %>"></label>
+  <% if (showState) { %>
+  <label>สถานะ <select name="state"><option value="">ทั้งหมด</option>
+    <% Object.entries(labels.STATES).forEach(([k, v]) => { %><option value="<%= k %>" <%= q.state === k ? 'selected' : '' %>><%= v %></option><% }) %></select></label>
+  <% } %>
+  <label>สร้างตั้งแต่วันที่ <input type="date" name="created_from" value="<%= q.created_from || '' %>"></label>
+  <label>ถึงวันที่ <input type="date" name="created_to" value="<%= q.created_to || '' %>"></label>
+</div>

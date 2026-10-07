@@ -1,0 +1,29 @@
+<%# rows: observations; showPpr: link to the PPR %>
+<div class="table-wrap">
+<table class="grid">
+  <thead><tr>
+    <% if (showPpr) { %><th>PPR / PR</th><% } %>
+    <th>เวลาที่ HOSxP ตอบ</th><th>ผล</th><th>สถานะ PPR</th><th>สถานะ PR ใน HOSxP</th><th>รายละเอียด</th>
+  </tr></thead>
+  <tbody>
+  <% if (!rows.length) { %><tr><td colspan="<%= showPpr ? 6 : 5 %>" class="muted">ไม่มีรายการ</td></tr><% } %>
+  <% rows.forEach(o => { %>
+    <tr class="<%= ['INVALID_EVIDENCE','NOT_FOUND','ANOMALY','ERROR','UNAVAILABLE'].includes(o.outcome) ? 'row-bad' : '' %>">
+      <% if (showPpr) { %><td><a href="/pprs/<%= o.ppr_id %>"><%= o.ppr_number || ('#' + o.ppr_id) %></a><div class="muted small">PR <%= o.pr_no %></div></td><% } %>
+      <td><%= o.observed_at ? fmt.date(o.observed_at) : '—' %><div class="muted small">บันทึก <%= fmt.date(o.recorded_at) %></div></td>
+      <td><span class="outcome outcome-<%= o.outcome %>"><%= labels.SYNC_OUTCOMES[o.outcome] || o.outcome %></span>
+        <% if (o.evidence_class) { %><div class="small"><%= labels.EVIDENCE_CLASSES[o.evidence_class] || o.evidence_class %></div><% } %>
+        <% if (o.released) { %><div class="badge ok">คืนแผนแล้ว</div><% } %></td>
+      <td><% if (o.state_before !== o.state_after) { %><%= labels.STATES[o.state_before] || o.state_before %> → <strong><%= labels.STATES[o.state_after] || o.state_after %></strong><% } else { %><%= labels.STATES[o.state_after] || o.state_after %><% } %></td>
+      <td><%= o.hosxp_status || '—' %><% if (o.native_status) { %><div class="muted small"><%= o.native_status %></div><% } %></td>
+      <td class="small">
+        <% (o.evidence_issues || []).forEach(i => { %><div><code><%= i.code %></code> <%= labels.codeText(i.code, i.message) %><% if (i.line) { %> · รายการ <%= i.line %><% } %><% if (i.field) { %> · <%= i.field %><% } %></div><% }) %>
+        <% (o.changes || []).forEach(c => { %><div><%= c.subject ? c.subject + ' · ' : '' %><%= c.field %>: <%= c.before %> → <%= c.after %><%= c.critical ? ' (สำคัญ)' : '' %></div><% }) %>
+        <% if (o.error_code) { %><div><code><%= o.error_code %></code> <%= o.error_message || '' %></div><% } %>
+        <% if (o.details && o.details.discarded_first_read) { %><div class="muted">อ่านครั้งแรกไม่สอดคล้องกัน (HOSxP อาจกำลังแก้ PR) จึงอ่านใหม่อีก 1 ครั้ง</div><% } %>
+      </td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table>
+</div>

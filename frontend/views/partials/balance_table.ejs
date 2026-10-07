@@ -1,0 +1,20 @@
+<% if (!rows.length) { %><p class="empty">ไม่มีรายการแผน</p><% } else { %>
+<div class="table-wrap"><table class="grid">
+  <thead><tr><th>รายการ</th><th>ประเภท</th><th>หน่วยงาน</th><th class="num">จำนวนตามแผน</th><th class="num">ใช้แล้ว</th><th class="num">คงเหลือ</th><th class="num">วงเงินตามแผน</th><th class="num">ใช้แล้ว</th><th class="num">คงเหลือ</th><th>สัดส่วนคงเหลือ</th><% const edit = typeof editFy !== 'undefined' && editFy; %><% if (edit) { %><th></th><% } %></tr></thead>
+  <tbody><% rows.forEach(r => { %>
+    <tr class="<%= r.alert === 'PLAN_EXHAUSTED' ? 'row-bad' : '' %>">
+      <td><%= r.item_name || r.item_id %><div class="muted small"><% if (r.item_id) { %><%= r.item_code %><% } else { %><span class="badge">ไม่มีรหัส HOSxP</span><% } %> · <%= r.unit %></div>
+        <% if (r.alert) { %><span class="badge <%= r.alert === 'PLAN_EXHAUSTED' ? 'bad' : '' %>"><%= labels.ALERT_TYPES[r.alert] %></span><% } %></td>
+      <td><%= labels.PLAN_TYPES[r.plan_type] || r.plan_type %></td>
+      <td><%= nameOf(m, 'DEPARTMENT', r.owner_department_id) %><% if (r.purchasing_department_id) { %><div class="muted small">ผู้ซื้อ: <%= nameOf(m, 'DEPARTMENT', r.purchasing_department_id) %></div><% } %></td>
+      <td class="num"><%= fmt.qty(r.planned_qty) %></td>
+      <td class="num"><%= fmt.qty(r.used_qty) %></td>
+      <td class="num"><%= fmt.qty(r.remaining_qty) %></td>
+      <td class="num"><%= fmt.money(r.planned_amount) %></td>
+      <td class="num"><%= fmt.money(r.used_amount) %></td>
+      <td class="num"><%= fmt.money(r.remaining_amount) %></td>
+      <td><%- include('meter', { planned_: r.planned_amount, remaining_: r.remaining_amount, low_: low }) %></td>
+      <% if (edit) { %><td><a href="/plans/<%= editFy %>/items/<%= r.plan_item_id %>/edit">แก้ไข</a></td><% } %>
+    </tr><% }) %></tbody>
+</table></div>
+<% } %>

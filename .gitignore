@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.pytest_tmp/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.import_linter_cache/
+
+# Local configuration / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local verification output
+_check_result_*.txt
+_db_setup_result.txt
+
+# HOSxP site configuration and schema reports (site-specific; review before sharing)
+hosxp_queries.toml
+hosxp_schema*.md
+
+# Frontend (Node.js)
+node_modules/
+
+# Operations (Wave 10A): service logs and supervisor state
+logs/
+run/
+# Backups never go into the repository
+*.dump
+*.manifest.json
+backups/

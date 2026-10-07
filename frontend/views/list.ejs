@@ -1,0 +1,11 @@
+<%- include('partials/header', { title: 'รายการ PPR' }) %>
+<div class="page-head">
+  <h1>รายการ PPR</h1>
+  <% if (can.request) { %><a class="button primary" href="/pprs/new">+ สร้าง PPR จากเลข PR</a><% } %>
+</div>
+<% if (!pprs.length) { %>
+<p class="empty">ยังไม่มี PPR<% if (can.request) { %> — เริ่มจากปุ่ม “สร้าง PPR จากเลข PR”<% } %></p>
+<% } else { %>
+<%- include('partials/ppr_table', { rows: pprs }) %>
+<% } %>
+<%- include('partials/footer') %>

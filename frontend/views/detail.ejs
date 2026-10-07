@@ -1,0 +1,246 @@
+<%- include('partials/header', { title: ppr.ppr_number || ('ร่าง PR ' + ppr.pr_no) }) %>
+<div class="page-head">
+  <h1><%= ppr.ppr_number ? 'PPR ' + ppr.ppr_number : 'ฉบับร่าง PPR' %>
+    <span class="state state-<%= ppr.state %>"><%= labels.STATES[ppr.state] || ppr.state %></span></h1>
+  <a href="/pprs">← รายการ PPR</a>
+</div>
+
+<section class="card">
+  <dl class="facts">
+    <dt>เลข PR</dt><dd><%= ppr.pr_no %> <span class="muted">(สถานะใน HOSxP: <%= ppr.hosxp_pr_status %>)</span></dd>
+    <dt>ปีงบประมาณ</dt><dd><%= ppr.fiscal_year %></dd>
+    <dt>หน่วยงานที่ขอ</dt><dd><%= nameOf(m, 'DEPARTMENT', ppr.department_id) %></dd>
+    <dt>แหล่งเงิน</dt><dd><%= nameOf(m, 'FUND_SOURCE', ppr.fund_source_id) %></dd>
+    <dt>หมวดงบของ PR</dt><dd><%= nameOf(m, 'BUDGET_CATEGORY', ppr.pr_budget_category_id) %></dd>
+    <dt>ยอดที่ขอใช้แผน</dt><dd><strong><%= fmt.money(ppr.required_amount) %> บาท</strong></dd>
+    <dt>ฉบับที่</dt><dd><%= ppr.version || '-' %></dd>
+    <dt>ปรับปรุงล่าสุด</dt><dd><%= fmt.date(ppr.updated_at) %></dd>
+  </dl>
+</section>
+
+<section class="card">
+  <h2>รายการจาก PR</h2>
+  <table class="grid">
+    <thead><tr><th>รายการ</th><th class="num">จำนวน</th><th>หน่วย</th><th class="num">ราคาต่อหน่วย</th><th class="num">จำนวนเงิน</th><th>รายการแผนที่ใช้</th></tr></thead>
+    <tbody>
+    <% ppr.items.forEach(i => { %>
+      <tr><td><%= i.item_name || nameOf(m, 'ITEM', i.item_id) %><div class="muted small"><%= i.item_id %></div></td>
+      <td class="num"><%= fmt.qty(i.qty) %></td><td><%= i.unit || '-' %></td>
+      <td class="num"><%= fmt.money(i.unit_price) %></td><td class="num"><%= fmt.money(i.amount) %></td>
+      <td><%= i.plan_item_name || ('#' + i.plan_item_id) %> (<%= i.plan_item_unit || '-' %>)<% if (i.plan_item_code) { %><div class="muted small">รหัส <%= i.plan_item_code %></div><% } %></td></tr>
+    <% }) %>
+    </tbody>
+    <tfoot><tr><th colspan="4">รวม</th><th class="num"><%= fmt.money(ppr.required_amount) %></th><th></th></tr></tfoot>
+  </table>
+  <% if (ppr.state === 'UNLOCKED_FOR_REVISION') { %><p class="muted small">รายการแผนข้างบนเป็นของฉบับที่ยืนยันล่าสุด: รายการที่เลือกใหม่มีผลเมื่อยืนยันใหม่</p><% } %>
+</section>
+
+<% if (editable) { %>
+<section class="card">
+  <h2>รายการแผนที่แต่ละรายการ PR ใช้ (D-43)</h2>
+  <% if (choicesError) { %><p class="problems">แสดงรายการแผนที่เลือกไม่ได้ตอนนี้: <%= choicesError %></p>
+  <% } else if (choices) { %>
+    <% const sel = {}; choices.stored.forEach(c => { sel[c.pr_item_id] = String(c.plan_item_id); }); const canEdit = mine; %>
+    <form method="post" action="/pprs/<%= ppr.id %>/choices">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <%- include('partials/line_choices', { report: choices.check, chosen: sel, selectable: canEdit }) %>
+      <% if (canEdit) { %><p class="actions"><button type="submit">บันทึกรายการแผนที่เลือก</button>
+        <span class="muted">ระบบตรวจทุกรายการอีกครั้งตอนยืนยัน</span></p><% } %>
+    </form>
+  <% } %>
+</section>
+<% } %>
+
+<section class="card">
+  <h2>การแบ่งหมวดงบ</h2>
+  <% if (editable && mine) { const rows = ppr.allocations.concat([{ budget_category_id: '', amount: '' }, { budget_category_id: '', amount: '' }]); %>
+  <form method="post" action="/pprs/<%= ppr.id %>/allocations" class="stack">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <table class="grid alloc">
+      <thead><tr><th>หมวดงบ</th><th class="num">ยอด (บาท)</th></tr></thead>
+      <tbody>
+      <% rows.forEach(a => { %>
+        <tr><td><select name="category">
+          <option value="">— ไม่ใช้แถวนี้ —</option>
+          <% categories.forEach(c => { %><option value="<%= c %>" <%= c === a.budget_category_id ? 'selected' : '' %>><%= nameOf(m, 'BUDGET_CATEGORY', c) %></option><% }) %>
+        </select></td>
+        <td class="num"><input name="amount" inputmode="decimal" value="<%= a.amount %>" class="num"></td></tr>
+      <% }) %>
+      </tbody>
+    </table>
+    <label>เลขอ้างอิงการปรับ (จำเป็นเมื่อแบ่งหลายหมวด, D-19)
+      <input name="adjustment_reference" value="<%= ppr.adjustment_reference || '' %>"></label>
+    <p class="muted">ผลรวมต้องเท่ากับยอดที่ขอ <%= fmt.money(ppr.required_amount) %> บาท (ตอนนี้ <%= fmt.money(ppr.allocated_amount) %>) · เลือกได้เฉพาะหมวดของปีงบและแหล่งเงินเดียวกัน</p>
+    <div><button type="submit">บันทึกการแบ่งหมวดงบ</button></div>
+  </form>
+  <% } else { %>
+  <table class="grid">
+    <thead><tr><th>หมวดงบ</th><th class="num">ยอด (บาท)</th></tr></thead>
+    <tbody><% ppr.allocations.forEach(a => { %><tr><td><%= nameOf(m, 'BUDGET_CATEGORY', a.budget_category_id) %></td><td class="num"><%= fmt.money(a.amount) %></td></tr><% }) %></tbody>
+  </table>
+  <% if (ppr.adjustment_reference) { %><p>เลขอ้างอิงการปรับ: <%= ppr.adjustment_reference %></p><% } %>
+  <% } %>
+</section>
+
+<% if (coverage.length) { %>
+<section class="card">
+  <h2>ซื้อแทนหน่วยงาน (Assigned Purchase)</h2>
+  <p class="muted">ระบุจำนวนที่ซื้อให้แต่ละหน่วยงาน ผลรวมต้องเท่ากับจำนวนที่ซื้อในรายการนั้น และไม่เกินความต้องการที่เหลือของหน่วยงาน (D-38) · ระบบตรวจตอนยืนยัน</p>
+  <% const covEdit = editable && mine; %>
+  <% if (covEdit) { %>
+  <form method="post" action="/pprs/<%= ppr.id %>/coverage" class="stack">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <% } %>
+  <% coverage.forEach(c => { %>
+    <h3><%= c.item_name %> <span class="muted small"><%= c.item_code %></span> — ซื้อ <%= fmt.qty(c.drawn_qty) %> <%= c.unit %></h3>
+    <table class="grid">
+      <thead><tr><th>หน่วยงาน</th><th class="num">ความต้องการ</th><th class="num">ใบอื่นครอบคลุมแล้ว</th><th>สถานะความต้องการ</th><th class="num">ใบนี้ (ยืนยันแล้ว)</th><th class="num">ใบนี้ซื้อให้</th></tr></thead>
+      <tbody>
+      <% c.lines.forEach(l => { %>
+        <tr><td><%= nameOf(m, 'DEPARTMENT', l.department_id) %></td>
+        <td class="num"><%= fmt.qty(l.demand_qty) %></td>
+        <td class="num"><%= fmt.qty(l.covered_by_others) %></td>
+        <td><%= labels.DEMAND_STATES[l.state] || l.state %></td>
+        <td class="num"><%= fmt.qty(l.confirmed) %></td>
+        <td class="num"><% if (covEdit && Number(l.demand_qty) > 0) { %>
+          <input type="hidden" name="cov_item" value="<%= c.plan_item_id %>">
+          <input type="hidden" name="cov_dept" value="<%= l.department_id %>">
+          <input name="cov_qty" inputmode="decimal" class="num" value="<%= Number(l.working) ? l.working : '' %>">
+        <% } else { %><%= fmt.qty(l.working) %><% } %></td></tr>
+      <% }) %>
+      </tbody>
+    </table>
+  <% }) %>
+  <% if (covEdit) { %>
+    <div><button type="submit">บันทึกยอดที่ซื้อให้แต่ละหน่วยงาน</button></div>
+  </form>
+  <% } %>
+</section>
+<% } %>
+
+<section class="card actions-card">
+  <h2>ดำเนินการ</h2>
+  <div class="actions">
+  <% if (editable && mine) { %>
+    <form method="post" action="/pprs/<%= ppr.id %>/confirm" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit" class="primary"><%= ppr.state === 'DRAFT' ? 'ยืนยันและล็อก PPR' : 'ยืนยันอีกครั้ง (ฉบับใหม่)' %></button>
+    </form>
+  <% } %>
+  <% if (ppr.state === 'DRAFT' && mine) { %>
+    <form method="post" action="/pprs/<%= ppr.id %>/discard" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit" class="danger">ยกเลิกฉบับร่าง</button>
+    </form>
+  <% } %>
+  <% if (versions.length) { %>
+    <a class="button" href="/pprs/<%= ppr.id %>/print" target="_blank" rel="noopener">พิมพ์ PPR (A4)</a>
+  <% } %>
+  <% if (canVerify) { %>
+    <form method="post" action="/pprs/<%= ppr.id %>/verify" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="version" value="<%= ppr.version %>">
+      <button type="submit" class="primary">ตรวจสอบและยืนยันแล้ว</button>
+    </form>
+  <% } %>
+  </div>
+  <% if (canVerify) { %>
+  <p class="muted">บันทึกว่าหัวหน้าเจ้าหน้าที่พัสดุตรวจสอบฉบับที่ <%= ppr.version %> แล้ว (ไม่ตัดแผนเพิ่ม ไม่แก้ข้อมูลใน HOSxP) — การลงนามบนกระดาษยังทำตามขั้นตอนเดิม</p>
+  <% } %>
+  <% if (editable && mine) { %>
+  <p class="muted">ตอนยืนยัน ระบบดึง PR จาก HOSxP ใหม่อีกครั้งและตรวจทุกข้อ ถ้า PR เปลี่ยนในจุดสำคัญ จะยืนยันไม่ได้ (D-21/D-22)</p>
+  <% } %>
+  <% if (ppr.state === 'PR_CHANGED_REVIEW_REQUIRED') { %>
+  <p class="problems">PR ใน HOSxP เปลี่ยนในจุดสำคัญหรือข้อมูลใช้ไม่ได้ ต้องทบทวน: เจ้าหน้าที่แผน/ผู้ดูแลระบบปลดล็อก → ผู้ขอแก้และยืนยันใหม่ (ตรวจครบทุกข้อ) → หัวหน้าพัสดุตรวจสอบฉบับใหม่ ระบบไม่รับการเปลี่ยนแปลงให้อัตโนมัติ</p>
+  <% } %>
+  <% if (ppr.state === 'DRAFT' && !mine && can.unlock) { %>
+  <form method="post" action="/pprs/<%= ppr.id %>/discard" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>เหตุผลในการยกเลิกฉบับร่างของผู้อื่น <input name="reason" required></label>
+    <button type="submit" class="danger">ยกเลิกฉบับร่าง (ผู้สร้างไม่อยู่)</button>
+  </form>
+  <% } %>
+  <% if (editable && can.request && !mine) { %>
+  <p class="muted">PPR นี้สร้างโดยผู้ขอคนอื่น เฉพาะผู้สร้างเท่านั้นที่แก้ไขหรือยืนยันได้ (D-41)</p>
+  <% } %>
+  <% if (unlockable && can.unlock) { %>
+  <form method="post" action="/pprs/<%= ppr.id %>/unlock" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>เหตุผลในการปลดล็อก <input name="reason" required></label>
+    <button type="submit" class="danger">ปลดล็อกเพื่อแก้ไข</button>
+  </form>
+  <% } %>
+</section>
+
+<% if (ppr.state !== 'DRAFT') { const last = observations[0]; %>
+<section class="card">
+  <h2>สถานะที่สังเกตได้จาก HOSxP</h2>
+  <% if (last) { %>
+  <p>อ่านล่าสุด: <strong><%= last.observed_at ? fmt.date(last.observed_at) : fmt.date(last.recorded_at) %></strong>
+    · ผล: <strong><%= labels.SYNC_OUTCOMES[last.outcome] || last.outcome %></strong>
+    · สถานะ PR ใน HOSxP ล่าสุดที่เชื่อถือได้: <%= ppr.hosxp_pr_status %></p>
+  <% } else { %>
+  <p class="muted">ยังไม่เคยซิงค์ PR ของ PPR นี้กับ HOSxP</p>
+  <% } %>
+  <% if (can.syncRun) { %>
+  <div class="actions">
+    <% if (syncable) { %>
+    <form method="post" action="/pprs/<%= ppr.id %>/sync" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit">ซิงค์ PPR นี้กับ HOSxP ตอนนี้</button>
+    </form>
+    <% } else if (ppr.state === 'CANCELLED') { %>
+    <form method="post" action="/pprs/<%= ppr.id %>/recheck" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit">ตรวจซ้ำกับ HOSxP (ดูอย่างเดียว ไม่เปลี่ยนสถานะ)</button>
+    </form>
+    <% } %>
+  </div>
+  <% } %>
+  <% if (observations.length) { %>
+  <details>
+    <summary>การอ่าน HOSxP <%= observations.length %> ครั้งล่าสุด</summary>
+    <%- include('partials/observation_rows', { rows: observations, showPpr: false }) %>
+  </details>
+  <% } %>
+</section>
+<% } %>
+
+<% if (versions.length) { %>
+<section class="card">
+  <h2>ประวัติฉบับที่ยืนยัน</h2>
+  <table class="grid">
+    <thead><tr><th>ฉบับที่</th><th>รหัสเอกสาร</th><th>ยืนยันเมื่อ</th><th>การเปลี่ยนแปลงของ PR ที่บันทึกไว้</th><th></th></tr></thead>
+    <tbody>
+    <% versions.slice().reverse().forEach(v => { const ch = (v.snapshot && v.snapshot.pr_changes) || []; %>
+      <tr><td><%= v.version %></td><td><code><%= v.document_code %></code></td><td><%= fmt.date(v.confirmed_at) %></td>
+      <td><% if (!ch.length) { %><span class="muted">ไม่มี</span><% } else { %><ul class="plain small"><% ch.forEach(c => { %><li><%= c.subject ? c.subject + ' · ' : '' %><%= c.field %>: <%= c.before %> → <%= c.after %><%= c.critical ? ' (สำคัญ)' : '' %></li><% }) %></ul><% } %></td>
+      <td><a href="/pprs/<%= ppr.id %>/print?version=<%= v.version %>" target="_blank" rel="noopener">พิมพ์</a></td></tr>
+    <% }) %>
+    </tbody>
+  </table>
+</section>
+<% } %>
+<section class="card">
+  <h2>ความเคลื่อนไหว (Timeline)</h2>
+  <p class="muted">สถานะตอนนี้: <strong><%= labels.STATES[timeline.state] || timeline.state %></strong> · เคลื่อนไหวล่าสุด <%= fmt.date(timeline.last_activity_at) %> (<%= timeline.days_inactive %> วันที่แล้ว)
+    · รายการ "พบใน HOSxP" คือสิ่งที่การซิงค์อ่านได้จริงจาก HOSxP ณ เวลานั้น แยกจากการกระทำของผู้ใช้และระบบ</p>
+  <% if (timeline.verifications.length) { %>
+  <p><% timeline.verifications.forEach(v => { %><span class="badge ok">ฉบับที่ <%= v.version %> ตรวจสอบโดย <%= v.verified_by_name || ('#' + v.verified_by_user_id) %> เมื่อ <%= fmt.date(v.verified_at) %></span> <% }) %></p>
+  <% } %>
+  <ol class="timeline">
+  <% timeline.events.slice().reverse().forEach(e => { %>
+    <li class="<%= e.source === 'HOSXP' ? 'from-hosxp' : '' %>">
+      <div class="when"><%= fmt.date(e.at) %><% if (e.source === 'HOSXP') { %> · <span class="badge">สังเกตใน HOSxP</span><% } %></div>
+      <div class="what"><strong><%= labels.EVENTS[e.action] || e.action %></strong><% if (e.version) { %> · ฉบับที่ <%= e.version %><% } %>
+        <% if (e.state_before && e.state_after && e.state_before !== e.state_after) { %><span class="muted"> · <%= labels.STATES[e.state_before] || e.state_before || '-' %> → <%= labels.STATES[e.state_after] || e.state_after %></span><% } %></div>
+      <% if (e.source === 'HOSXP') { %>
+      <div class="who muted small"><% (e.details.evidence_issues || []).forEach(i => { %><div><code><%= i.code %></code> <%= labels.codeText(i.code, i.message) %></div><% }) %><% (e.details.pr_changes || []).filter(c => c.critical).forEach(c => { %><div><%= c.subject ? c.subject + ' · ' : '' %><%= c.field %>: <%= c.before %> → <%= c.after %></div><% }) %><% if (e.details.released) { %><div>คืนแผนที่ PPR นี้ใช้ไว้แล้ว</div><% } %></div>
+      <% } else { %>
+      <div class="who muted">โดย <%= e.actor_name || (e.actor_user_id ? '#' + e.actor_user_id : 'ระบบ') %><% if (e.reason) { %> · เหตุผล: <%= e.reason %><% } %></div>
+      <% } %>
+    </li>
+  <% }) %>
+  </ol>
+</section>
+<%- include('partials/footer') %>

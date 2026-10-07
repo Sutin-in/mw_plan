@@ -1,0 +1,107 @@
+<%- include('partials/header', { title: 'แผนปีงบ ' + year.fiscal_year }) %>
+<% const manage = can.planManage && editable; const next = labels.PLAN_YEAR_NEXT[year.state]; const activeMasters = (kind) => Object.values(m[kind] || {}).filter(r => r.active); %>
+<div class="page-head">
+  <h1>แผนปีงบ <%= year.fiscal_year %> <span class="state"><%= labels.PLAN_YEAR_STATES[year.state] || year.state %></span></h1>
+  <a class="button" href="/dashboard?fiscal_year=<%= year.fiscal_year %>">แดชบอร์ด</a>
+</div>
+<p class="muted"><%= year.starts_on %> – <%= year.ends_on %>
+  <% if (year.state === 'APPROVED') { %> · แผนอนุมัติแล้ว: แก้ได้เฉพาะให้ตรงเอกสารที่อนุมัติ พร้อมเหตุผลและเลขที่เอกสาร (D-15)<% } %>
+  <% if (year.state === 'ACTIVE') { %> · แผนเปิดใช้แล้ว: เปลี่ยนแผนได้เฉพาะผ่านการปรับแผนที่ผู้อำนวยการอนุมัติ (D-37)<% } %>
+  <% if (year.state === 'CLOSED') { %> · ปิดปีงบแล้ว: เปลี่ยนแผนไม่ได้<% } %>
+</p>
+<% if (year.state === 'ACTIVE' || year.state === 'CLOSED') { %>
+<p class="row"><a class="button" href="/plans/<%= year.fiscal_year %>/amendments">ประวัติการปรับแผน</a>
+  <% if (can.planAmend && year.state === 'ACTIVE') { %><a class="button primary" href="/plans/<%= year.fiscal_year %>/amendments/new">+ ปรับแผน</a><% } %></p>
+<% } %>
+
+<% if (can.planManage && next) { %>
+<section class="card">
+  <h2>ขั้นถัดไป</h2>
+  <% if (next.target === 'ACTIVE' && validation && !validation.can_activate) { %><p class="problems">แผนยังไม่ผ่านการตรวจ ระบบจะไม่เปิดใช้จนกว่าจะแก้ครบ (ดูผลตรวจด้านล่าง)</p><% } %>
+  <form method="post" action="/plans/<%= year.fiscal_year %>/transition" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="target" value="<%= next.target %>">
+    <label>หมายเหตุ/เลขที่หนังสือ <input name="reason" <%= next.target === 'CLOSED' ? 'required' : '' %>></label>
+    <% if (next.target === 'CLOSED') { %><label><input type="checkbox" name="confirm" required> ยืนยันปิดปีงบ (ย้อนกลับไม่ได้)</label><% } %>
+    <button type="submit" class="<%= next.target === 'CLOSED' ? 'danger' : 'primary' %>"><%= next.text %></button>
+  </form>
+</section>
+<% } %>
+
+<% if (validation) { %>
+<section class="card">
+  <h2>ผลตรวจแผน<% if (validation.can_activate) { %> <span class="badge ok">พร้อมเปิดใช้</span><% } else { %> <span class="badge bad">ยังเปิดใช้ไม่ได้</span><% } %></h2>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>แหล่งเงิน / หมวดงบ</th><th class="num">วงเงินอนุมัติ</th><th class="num">รวมรายการแผน</th><th class="num">ต่าง</th></tr></thead>
+    <tbody><% validation.envelope.forEach(e => { %><tr class="<%= e.balanced ? '' : 'row-bad' %>">
+      <td><%= nameOf(m, 'FUND_SOURCE', e.fund_source_id) %> / <%= nameOf(m, 'BUDGET_CATEGORY', e.budget_category_id) %></td>
+      <td class="num"><%= fmt.money(e.approved_amount) %></td><td class="num"><%= fmt.money(e.planned_total) %></td><td class="num"><%= fmt.money(e.difference) %></td>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% if (validation.errors.length) { %><h3>ต้องแก้</h3><ul class="plain"><% validation.errors.forEach(i => { %><li><%= labels.codeText(i.code, i.message) %> <code><%= i.code %></code><% if (i.subject) { %> · <%= i.subject %><% } %></li><% }) %></ul><% } %>
+  <% if (validation.warnings.length) { %><details><summary>ข้อสังเกต (ไม่ห้ามเปิดใช้) <%= validation.warnings.length %> รายการ</summary><ul class="plain"><% validation.warnings.forEach(i => { %><li><%= labels.codeText(i.code, i.message) %><% if (i.subject) { %> · รายการ #<%= i.subject %><% } %></li><% }) %></ul></details><% } %>
+</section>
+<% } %>
+
+<section class="card">
+  <h2>วงเงินตามแหล่งเงิน / หมวดงบ</h2>
+  <% if (!budgets.length) { %><p class="empty">ยังไม่มีวงเงิน</p><% } else { %>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>แหล่งเงิน</th><th>หมวดงบ</th><th class="num">วงเงินอนุมัติ (บาท)</th><% if (manage) { %><th>จัดการ</th><% } %></tr></thead>
+    <tbody><% budgets.forEach(b => { %><tr>
+      <td><%= nameOf(m, 'FUND_SOURCE', b.fund_source_id) %></td><td><%= nameOf(m, 'BUDGET_CATEGORY', b.budget_category_id) %></td>
+      <td class="num"><%= fmt.money(b.approved_amount) %></td>
+      <% if (manage) { %><td>
+        <form method="post" action="/plans/<%= year.fiscal_year %>/budgets/<%= b.id %>" class="row compact-form">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <label>วงเงินใหม่ <input name="approved_amount" inputmode="decimal" required value="<%= b.approved_amount %>"></label>
+          <%- include('partials/correction_fields', { year }) %>
+          <button type="submit">แก้</button>
+        </form>
+        <form method="post" action="/plans/<%= year.fiscal_year %>/budgets/<%= b.id %>/delete" class="row compact-form">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <%- include('partials/correction_fields', { year }) %>
+          <button type="submit" class="danger">ลบ</button>
+        </form>
+      </td><% } %>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+  <% if (manage) { %>
+  <% if (!activeMasters('FUND_SOURCE').length) { %><p class="problems">ยังไม่มีข้อมูลหลัก — ซิงค์ข้อมูลหลักจาก HOSxP ก่อนที่หน้า <a href="/plans">แผนประจำปี</a></p><% } %>
+  <form method="post" action="/plans/<%= year.fiscal_year %>/budgets" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>แหล่งเงิน <select name="fund_source_id" required><% activeMasters('FUND_SOURCE').forEach(f => { %><option value="<%= f.source_id %>"><%= f.name %></option><% }) %></select></label>
+    <label>หมวดงบ <select name="budget_category_id" required><% activeMasters('BUDGET_CATEGORY').forEach(c => { %><option value="<%= c.source_id %>"><%= c.name %> (<%= c.code %>)</option><% }) %></select></label>
+    <label>วงเงินอนุมัติ (บาท) <input name="approved_amount" inputmode="decimal" required></label>
+    <%- include('partials/correction_fields', { year }) %>
+    <button type="submit" class="primary">เพิ่มวงเงิน</button>
+  </form>
+  <% } %>
+</section>
+
+<section class="card">
+  <div class="page-head"><h2>รายการแผน (<%= balances.length %>)</h2>
+    <div class="row"><% if (can.planManage) { %><a class="button" href="/plans/<%= year.fiscal_year %>/import">นำเข้าจาก Excel</a><% } %>
+    <% if (manage) { %><a class="button primary" href="/plans/<%= year.fiscal_year %>/items/new">+ เพิ่มรายการแผน</a><% } %></div></div>
+  <% if (year.state !== 'ACTIVE' && year.state !== 'CLOSED') { %><p class="muted small">ยังไม่เปิดใช้: “ใช้แล้ว” เป็นศูนย์ และยังไม่มีแจ้งเตือนแผนใกล้หมด</p><% } %>
+  <%- include('partials/balance_table', { rows: balances, low, editFy: manage ? String(year.fiscal_year) : null }) %>
+</section>
+<% if (assigned.length) { %>
+<section class="card">
+  <h2>ความต้องการของหน่วยงานในแผนซื้อแทน (Assigned Purchase)</h2>
+  <p class="muted small">สถานะคำนวณจาก PPR ของหน่วยงานผู้ซื้อ: รอซื้อ → อยู่ในใบที่ยืนยันแล้ว → พัสดุตรวจแล้ว · ปรับความต้องการได้ทางการปรับแผนเท่านั้น (D-38)</p>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>รายการแผน</th><th>หน่วยงานผู้ซื้อ</th><th>หน่วยงานที่ต้องการ</th><th class="num">ความต้องการ</th><th class="num">PPR ครอบคลุมแล้ว</th><th>สถานะ</th></tr></thead>
+    <tbody><% assigned.forEach(i => { i.demands.forEach((d, n) => { %><tr>
+      <% if (n === 0) { %><td rowspan="<%= i.demands.length %>"><%= i.item_name %> <span class="muted small"><%= i.item_code %></span></td>
+      <td rowspan="<%= i.demands.length %>"><%= nameOf(m, 'DEPARTMENT', i.purchasing_department_id) %></td><% } %>
+      <td><%= nameOf(m, 'DEPARTMENT', d.department_id) %></td>
+      <td class="num"><%= fmt.qty(d.demand_qty) %> <%= i.unit %></td>
+      <td class="num"><%= fmt.qty(d.covered || 0) %></td>
+      <td><span class="state demand-<%= d.state %>"><%= labels.DEMAND_STATES[d.state] || d.state %></span></td>
+    </tr><% }) }) %></tbody>
+  </table></div>
+</section>
+<% } %>
+<%- include('partials/footer') %>

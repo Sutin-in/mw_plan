@@ -1,0 +1,90 @@
+<%- include('partials/header', { title: 'นำเข้าแผน ' + year.fiscal_year }) %>
+<% const fy = year.fiscal_year; const draft = year.state === 'DRAFT'; const where = (i) => [i.sheet, i.row ? 'แถว ' + i.row : null, i.column].filter(Boolean).join(' · '); %>
+<div class="page-head">
+  <h1>นำเข้าแผนปีงบ <%= fy %> จาก Excel <span class="state"><%= labels.PLAN_YEAR_STATES[year.state] || year.state %></span></h1>
+  <a class="button" href="/plans/<%= fy %>">กลับไปหน้าแผน</a>
+</div>
+<p class="muted">นำเข้าได้เฉพาะแผนสถานะร่าง · ตรวจทั้งไฟล์ก่อน และนำเข้าทั้งหมดหรือไม่มีเลย · วงเงิน (แหล่งเงิน × หมวดงบ) ต้องกรอกในหน้าแผนก่อน ตามเอกสารอนุมัติ · แผนไม่มีรหัสสินค้า HOSxP: ผู้ขอเลือกรายการแผนเองทุกครั้งที่ทำ PPR (D-43)</p>
+
+<section class="card">
+  <h2>1. แม่แบบ</h2>
+  <p>ดาวน์โหลดแม่แบบที่มีรายชื่อหน่วยงาน แหล่งเงิน หมวดงบจาก HOSxP (ที่ซิงค์แล้ว) และวงเงินที่มีในระบบ แล้วกรอกแผ่น “หัวข้อ” และ “รายการ”</p>
+  <p><a class="button" href="/plans/<%= fy %>/import-template">ดาวน์โหลดแม่แบบนำเข้า (.xlsx)</a></p>
+</section>
+
+<% if (draft) { %>
+<section class="card">
+  <h2>2. ตรวจไฟล์</h2>
+  <form method="post" action="/plans/<%= fy %>/import/preview" enctype="multipart/form-data" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>ไฟล์ Excel (.xlsx ไม่เกิน 10 MB) <input type="file" name="file" accept=".xlsx" required></label>
+    <button type="submit" class="primary">ตรวจไฟล์ (ยังไม่บันทึก)</button>
+  </form>
+</section>
+<% } else { %>
+<p class="problems">แผนนี้ไม่ได้อยู่สถานะร่าง: นำเข้าหรือยกเลิกการนำเข้าไม่ได้</p>
+<% } %>
+
+<% if (preview) { %>
+<section class="card">
+  <h2>ผลตรวจไฟล์: <%= preview.file_name %>
+    <% if (preview.can_import) { %><span class="badge ok">นำเข้าได้</span><% } else { %><span class="badge bad">นำเข้าไม่ได้</span><% } %></h2>
+  <p>จะนำเข้า <strong><%= preview.rows_to_import %></strong> รายการ ·
+     มูลค่ารวม <strong><%= fmt.money(preview.total_amount) %></strong> บาท ·
+     ข้ามแถวที่เป็น 0: <%= preview.skipped_total %> · คำเตือน <%= preview.warnings_total %> · ข้อผิดพลาด <%= preview.errors_total %></p>
+  <p class="muted small">SHA-256: <code><%= preview.file_sha256 %></code></p>
+  <% if (preview.duplicate_of) { %><p class="problems">ไฟล์นี้นำเข้าแล้ว (ครั้งที่ #<%= preview.duplicate_of.id %> <%= preview.duplicate_of.file_name %>): ต้องยกเลิกการนำเข้าเดิมก่อน</p><% } %>
+
+  <% if (preview.budgets.length) { %>
+  <h3>เทียบวงเงิน (ต้องเท่ากันพอดีจึงอนุมัติแผนได้)<% if (preview.errors_total) { %> <span class="muted small">นับเฉพาะแถวที่ผ่านการตรวจ</span><% } %></h3>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>แหล่งเงิน / หมวดงบ</th><th class="num">วงเงินอนุมัติ</th><th class="num">รายการเดิม</th><th class="num">นำเข้า (แถว)</th><th class="num">รวมหลังนำเข้า</th><th class="num">ต่าง</th></tr></thead>
+    <tbody><% preview.budgets.forEach(b => { %><tr class="<%= Number(b.difference) === 0 ? '' : 'row-bad' %>">
+      <td><%= nameOf(m, 'FUND_SOURCE', b.fund_source_id) %> / <%= nameOf(m, 'BUDGET_CATEGORY', b.budget_category_id) %></td>
+      <td class="num"><%= fmt.money(b.approved_amount) %></td><td class="num"><%= fmt.money(b.already_planned) %></td>
+      <td class="num"><%= fmt.money(b.imported) %> (<%= b.rows %>)</td><td class="num"><%= fmt.money(b.after_import) %></td><td class="num"><%= fmt.money(b.difference) %></td>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+
+  <% [['ข้อผิดพลาด (ต้องแก้ในไฟล์ก่อน)', preview.errors, preview.errors_total], ['คำเตือน (นำเข้าได้)', preview.warnings, preview.warnings_total], ['แถวที่ข้าม', preview.skipped, preview.skipped_total]].forEach(([title, list, total]) => { if (!list.length) return; %>
+  <h3><%= title %> <%= total %><% if (total > list.length) { %> (แสดง <%= list.length %> รายการแรก)<% } %></h3>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>ตำแหน่ง</th><th>รหัส</th><th>รายละเอียด</th></tr></thead>
+    <tbody><% list.forEach(i => { %><tr><td><%= where(i) %></td><td><code><%= i.code %></code></td><td><%= i.message %></td></tr><% }) %></tbody>
+  </table></div>
+  <% }) %>
+
+  <% if (preview.can_import && pendingId) { %>
+  <form method="post" action="/plans/<%= fy %>/import/confirm" class="row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="pending" value="<%= pendingId %>">
+    <label><input type="checkbox" name="confirm" required> ตรวจผลแล้ว นำเข้า <%= preview.rows_to_import %> รายการ</label>
+    <button type="submit" class="primary">ยืนยันนำเข้า</button>
+  </form>
+  <p class="muted small">ไฟล์ที่ตรวจแล้วเก็บไว้ชั่วคราว 30 นาที: ถ้าเกินเวลา ให้ตรวจไฟล์ใหม่</p>
+  <% } %>
+</section>
+<% } %>
+
+<section class="card">
+  <h2>ประวัติการนำเข้า (<%= imports.length %>)</h2>
+  <% if (!imports.length) { %><p class="muted">ยังไม่มีการนำเข้า</p><% } else { %>
+  <div class="table-wrap"><table class="grid">
+    <thead><tr><th>#</th><th>ไฟล์</th><th class="num">รายการ</th><th class="num">ข้าม</th><th class="num">มูลค่า</th><th>เวลา</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody><% imports.forEach(i => { %><tr>
+      <td><%= i.id %></td><td><%= i.file_name %><div class="muted small"><code><%= i.file_sha256.slice(0, 16) %>…</code></div></td>
+      <td class="num"><%= i.rows_imported %></td><td class="num"><%= i.rows_skipped %></td><td class="num"><%= fmt.money(i.total_amount) %></td>
+      <td><%= fmt.date(i.imported_at) %></td>
+      <td><% if (i.state === 'REMOVED') { %>ยกเลิกแล้ว <%= fmt.date(i.removed_at) %><div class="muted small"><%= i.removed_reason %></div><% } else { %>นำเข้าแล้ว<% } %></td>
+      <td><% if (draft && can.planManage && i.state === 'IMPORTED') { %>
+        <form method="post" action="/plans/<%= fy %>/imports/<%= i.id %>/remove" class="row compact-form">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <input name="reason" placeholder="เหตุผลที่ยกเลิก" required maxlength="1000">
+          <button type="submit" class="danger">ยกเลิกการนำเข้า (ลบ <%= i.rows_imported %> รายการ)</button>
+        </form><% } %></td>
+    </tr><% }) %></tbody>
+  </table></div>
+  <% } %>
+</section>
+<%- include('partials/footer') %>

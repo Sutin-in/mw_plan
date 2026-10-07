@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= typeof title !== 'undefined' ? title + ' · ' : '' %>ระบบควบคุมแผนและ PPR</title>
+<link rel="stylesheet" href="/static/style.css">
+<% if (typeof refresh !== 'undefined' && refresh) { %><meta http-equiv="refresh" content="<%= Number(refresh) %>"><% } %>
+</head>
+<body>
+<% if (info && info.demo) { %>
+<div class="demo-banner" role="note"><%= labels.DEMO_NOTE %> · ปีงบประมาณปัจจุบัน <%= info.current_fiscal_year %></div>
+<% } else if (!info) { %>
+<div class="demo-banner" role="alert">ตรวจสอบสถานะระบบหลังบ้าน (API) ไม่ได้ในขณะนี้ — อาจเป็นโหมดทดลอง ห้ามใช้กับข้อมูลจริงจนกว่าระบบจะแสดงสถานะ</div>
+<% } %>
+<% if (info && info.mock_data_warning) { %>
+<div class="demo-banner mock-warning" role="alert"><%= info.mock_data_warning %></div>
+<% } %>
+<header class="topbar">
+  <a class="brand" href="/dashboard">ระบบควบคุมแผนและ PPR</a>
+  <% if (me) { %>
+  <nav class="menu" aria-label="เมนูหลัก">
+    <a href="/dashboard">แดชบอร์ด</a>
+    <a href="/pprs">รายการ PPR</a>
+    <a href="/plans">แผน</a>
+    <a href="/alerts">แจ้งเตือน</a>
+    <a href="/reports">รายงาน</a>
+    <a href="/search">ค้นหา</a>
+    <% if (can && can.queue) { %><a href="/procurement">คิวพัสดุ</a><% } %>
+    <% if (can && can.appointments) { %><a href="/appointments">การแต่งตั้งหัวหน้าพัสดุ</a><% } %>
+    <% if (can && can.syncRead) { %><a href="/pr-sync">ซิงค์ PR กับ HOSxP</a><% } %>
+  </nav>
+  <nav class="user">
+    <span class="who"><%= me.display_name || me.username %></span>
+    <span class="roles"><%= me.roles.map(r => labels.ROLES[r] || r).join(', ') %></span>
+    <form method="post" action="/logout" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit" class="link">ออกจากระบบ</button>
+    </form>
+  </nav>
+  <% } %>
+</header>
+<main>
+<%- include('flash') %>
